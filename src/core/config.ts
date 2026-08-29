@@ -46,6 +46,23 @@ export const CFG = {
     pitchDeadzone: 0.06,          // stick travel below this counts as "hands off"
   },
 
+  /**
+   * Subsystem damage. Hull still takes the full hit, so time to kill — and every
+   * balance number measured against it — is unchanged; systems degrade alongside
+   * it and change how a wounded jet flies rather than how long it survives.
+   */
+  systems: {
+    /** subsystem damage per point of hull damage */
+    scale: 0.85,
+    /** fraction of hits that land on structure only, sparing every system */
+    missChance: 0.25,
+    /** worst multipliers at a completely destroyed system */
+    minThrust: 0.42,
+    minAuthority: 0.45,
+    /** burner reserve lost per second at a completely ruptured tank */
+    fuelLeakRate: 0.34,
+  },
+
   hull: {
     hp: 100,
     radius: 8,            // collision sphere

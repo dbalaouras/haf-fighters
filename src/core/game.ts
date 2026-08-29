@@ -310,14 +310,16 @@ export class Game {
       this.handleWeapons(a, dt);
       this.checkTerrain(a);
       this.checkBounds(a, dt);
-      if (a.hp < 45) this.fx.damageSmoke(a.pos, a.velocity(this._v), 1 - a.hp / 45);
+      // trail smoke for a wrecked system as well as a wrecked hull
+      const hurt = Math.max(1 - a.hp / 45, a.worstSystem < 0.6 ? 1 - a.worstSystem : 0);
+      if (hurt > 0) this.fx.damageSmoke(a.pos, a.velocity(this._v), Math.min(1, hurt));
     }
 
     // --- projectiles ---
     this.bullets.update(dt, this.aircraft, this.terrain, this.fx,
-      (victim, shooter, dmg) => this.applyDamage(victim, shooter, dmg));
+      (victim, shooter, dmg, at) => this.applyDamage(victim, shooter, dmg, at));
     this.missiles.update(dt, this.aircraft, this.terrain, this.fx,
-      (hit) => this.applyDamage(hit.victim, hit.shooter, hit.damage),
+      (hit) => this.applyDamage(hit.victim, hit.shooter, hit.damage, hit.at),
       (at) => this.audio.explosion(at, 1));
 
     this.volcano?.update(dt);
@@ -429,8 +431,8 @@ export class Game {
     void dt;
   }
 
-  private applyDamage(victim: Aircraft, shooter: Aircraft | null, dmg: number) {
-    const lethal = victim.damage(dmg, shooter, this.time);
+  private applyDamage(victim: Aircraft, shooter: Aircraft | null, dmg: number, at?: THREE.Vector3) {
+    const lethal = victim.damage(dmg, shooter, this.time, at);
     if (victim === this.player) {
       this.damageFlash = Math.min(1, this.damageFlash + dmg / 40);
       this.shake = Math.min(1, this.shake + dmg / 60);

@@ -513,7 +513,7 @@ export class Hud {
   private throttleBlock(s: HudState) {
     const c = this.ctx;
     const p = s.player;
-    const x = 42, y = this.h - 126, w = 150, h = 12;
+    const x = 42, y = this.h - 148, w = 150, h = 12;
 
     const lit = p.burnerActive;
     this.bar(x, y, w, h, p.controls.throttle, lit ? '#ff9d4a' : ACCENT,
@@ -535,6 +535,25 @@ export class Hud {
     this.bar(x, y + 68, w, h, p.hp / CFG.hull.hp,
       p.hp > 60 ? ACCENT : p.hp > 30 ? '#ffd166' : WARN, `HULL ${p.hp.toFixed(0)}%`);
 
+    // subsystem condition, so a hit reads as "what broke" and not just a number
+    const sys: ReadonlyArray<[string, number]> = [
+      ['ENG', p.systems.engine],
+      ['CTL', p.systems.controls],
+      ['FUEL', p.systems.fuel],
+    ];
+    const cellW = w / 3;
+    sys.forEach(([label, v], i) => {
+      const sx = x + i * cellW;
+      const col = v > 0.66 ? ACCENT : v > 0.33 ? '#ffd166' : WARN;
+      c.fillStyle = INK;
+      c.fillRect(sx, y + 92, cellW - 5, 5);
+      c.fillStyle = col;
+      c.fillRect(sx, y + 92, (cellW - 5) * clamp01(v), 5);
+      c.fillStyle = v > 0.66 ? DIM : col;
+      c.textAlign = 'left';
+      c.fillText(label, sx, y + 87);
+    });
+
     // control-mode readout, so the current flight model is never a mystery
     const flags = [s.assist ? 'ASSIST' : 'MANUAL'];
     if (s.freeLook) flags.push('LOOK');
@@ -542,7 +561,7 @@ export class Hud {
     if (s.muted) flags.push('MUTED');
     c.fillStyle = DIM;
     c.textAlign = 'left';
-    c.fillText(flags.join('  ·  '), x, y + 96);
+    c.fillText(flags.join('  ·  '), x, y + 118);
   }
 
   private weaponsBlock(s: HudState) {

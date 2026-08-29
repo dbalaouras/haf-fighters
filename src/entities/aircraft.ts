@@ -15,6 +15,8 @@ export interface Controls {
   flares: boolean;
 }
 
+export type SystemId = 'engine' | 'controls' | 'fuel';
+
 export const newControls = (): Controls => ({
   pitch: 0, roll: 0, yaw: 0, throttle: 0.7, burner: false,
   gun: false, missile: false, flares: false,
@@ -25,6 +27,7 @@ const AY = new THREE.Vector3(0, 1, 0);
 const AZ = new THREE.Vector3(0, 0, 1);
 const _q = new THREE.Quaternion();
 const _omega = new THREE.Vector3();
+const _hit = new THREE.Vector3();
 
 export class Aircraft {
   readonly team: TeamId;
@@ -50,6 +53,8 @@ export class Aircraft {
   rates = { p: 0, q: 0, r: 0 };
 
   hp: number = CFG.hull.hp;
+  /** 1 = intact, 0 = destroyed. Degrades alongside hull, never instead of it. */
+  systems: Record<SystemId, number> = { engine: 1, controls: 1, fuel: 1 };
   alive = true;
   respawnTimer = 0;
 
@@ -145,6 +150,11 @@ export class Aircraft {
 
   get burner(): boolean { return this.burnerActive; }
 
+  /** condition of the worst-damaged system, for smoke and HUD emphasis */
+  get worstSystem(): number {
+    return Math.min(this.systems.engine, this.systems.controls, this.systems.fuel);
+  }
+
   /** the selected missile's numbers — lock cone, range, reload and so on */
   get weaponSpec(): WeaponSpec { return WEAPONS[this.weapon]; }
   get missiles(): number { return this.ammo[this.weapon]; }
@@ -175,18 +185,41 @@ export class Aircraft {
     this.locked = false;
   }
 
-  /** Control effectiveness falls off when slow (mushy) and very fast (stiff). */
+  /** Control effectiveness falls off when slow (mushy), very fast (stiff) or shot up. */
   private authority(): number {
     const s = this.speed;
     const low = clamp01((s - CFG.flight.speedMin * 0.6) / (CFG.flight.stallSpeed - CFG.flight.speedMin * 0.6));
     const high = 1 - 0.3 * clamp01((s - CFG.flight.speedMax) / (CFG.flight.speedBurner - CFG.flight.speedMax));
-    return clamp(0.25 + 0.75 * low, 0.25, 1) * high;
+    const S = CFG.systems;
+    const damaged = S.minAuthority + (1 - S.minAuthority) * this.systems.controls;
+    return clamp(0.25 + 0.75 * low, 0.25, 1) * high * damaged;
+  }
+
+  /** Thrust available, cut by engine damage. */
+  private thrustFactor(): number {
+    const S = CFG.systems;
+    return S.minThrust + (1 - S.minThrust) * this.systems.engine;
+  }
+
+  /** Which system a hit at this world point damages, or null for structure only. */
+  private systemAt(at: THREE.Vector3 | undefined): SystemId | null {
+    if (Math.random() < CFG.systems.missChance) return null;
+    if (!at) return (['engine', 'controls', 'fuel'] as const)[Math.floor(Math.random() * 3)];
+    // into the airframe's own frame: -z is the nose, +z the tail, x the span
+    _hit.copy(at).sub(this.pos).applyQuaternion(_q.copy(this.quat).invert());
+    if (_hit.z > 1.5) return 'engine';               // aft third
+    if (Math.abs(_hit.x) > 3.2) return 'controls';   // out on the surfaces
+    if (_hit.z > -3.5) return 'fuel';                // mid fuselage tankage
+    return null;                                     // nose: structure only
   }
 
   private targetSpeed(): number {
     const F = CFG.flight;
-    if (this.burnerActive) return F.speedBurner;
-    return lerp(F.speedMin, F.speedMax, clamp01(this.controls.throttle));
+    const base = this.burnerActive
+      ? F.speedBurner
+      : lerp(F.speedMin, F.speedMax, clamp01(this.controls.throttle));
+    // a wrecked engine cannot hold the speed the throttle is asking for
+    return F.speedMin * 0.7 + (base - F.speedMin * 0.7) * this.thrustFactor();
   }
 
   /**
@@ -197,8 +230,13 @@ export class Aircraft {
    */
   private updateBurner(dt: number) {
     const F = CFG.flight;
-    const wants = this.controls.burner && this.alive;
+    // a badly damaged engine cannot light the burner at all
+    const wants = this.controls.burner && this.alive && this.systems.engine > 0.35;
     this.burnerActive = wants && this.burnerFuel > 0;
+
+    // a punctured tank bleeds reserve whether or not the burner is lit
+    const leak = (1 - this.systems.fuel) * CFG.systems.fuelLeakRate;
+    if (leak > 0) this.burnerFuel = Math.max(0, this.burnerFuel - leak * dt);
 
     if (this.burnerActive) {
       this.burnerFuel = Math.max(0, this.burnerFuel - F.burnerBurn * dt);
@@ -340,6 +378,7 @@ export class Aircraft {
   /** Top everything back up — what flying through a rearm ring gives you. */
   restock() {
     this.hp = CFG.hull.hp;
+    this.systems.engine = this.systems.controls = this.systems.fuel = 1;
     this.ammo.IR = WEAPONS.IR.count;
     this.ammo.RADAR = WEAPONS.RADAR.count;
     this.flares = CFG.flare.count;
@@ -349,10 +388,16 @@ export class Aircraft {
   }
 
   /** @returns true if this hit was lethal */
-  damage(amount: number, from: Aircraft | null, now: number): boolean {
+  damage(amount: number, from: Aircraft | null, now: number, at?: THREE.Vector3): boolean {
     if (!this.alive) return false;
     const applied = Math.min(amount, this.hp);
     this.hp -= amount;
+
+    // systems degrade alongside the hull, never instead of it
+    const sys = this.systemAt(at);
+    if (sys) {
+      this.systems[sys] = clamp01(this.systems[sys] - (applied * CFG.systems.scale) / CFG.hull.hp);
+    }
     if (from && from !== this) {
       this.lastHitBy = from;
       this.lastHitAt = now;
@@ -394,6 +439,7 @@ export class Aircraft {
     this.flareCooldown = 0;
     this.burnerFuel = 1;
     this.burnerActive = false;
+    this.systems.engine = this.systems.controls = this.systems.fuel = 1;
     this.damagedBy.clear();
     this.gunHeat = 0;
     this.gunOverheated = false;

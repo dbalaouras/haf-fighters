@@ -114,7 +114,7 @@ export class Pilot {
 
     // shot dry or shot up? go and rearm, provided a zone is close enough to bother
     if (this.state === 'PURSUE' || this.state === 'ATTACK') {
-      const hurt = jet.hp < CFG.ai.resupplyHp;
+      const hurt = jet.hp < CFG.ai.resupplyHp || jet.worstSystem < 0.45;
       const dry = jet.missiles === 0;
       if (hurt || dry) {
         const target = waypoints.nearestReady(jet.pos);

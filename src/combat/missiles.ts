@@ -29,6 +29,8 @@ export interface MissileHit {
   victim: Aircraft;
   shooter: Aircraft;
   damage: number;
+  /** detonation point, so damage can be attributed to a part of the airframe */
+  at: THREE.Vector3;
 }
 
 /** Pooled heat-seekers using lead-pursuit guidance with a limited seeker turn rate. */
@@ -228,7 +230,7 @@ export class MissileSystem {
       if (d > m.spec.blastRadius) continue;
       const falloff = clamp(
         1 - (d - m.spec.proximity) / m.spec.blastRadius, CFG.missile.blastFalloffFloor, 1);
-      onHit({ victim: a, shooter: m.owner, damage: m.spec.damage * falloff });
+      onHit({ victim: a, shooter: m.owner, damage: m.spec.damage * falloff, at: m.pos });
     }
   }
 

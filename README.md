@@ -307,6 +307,11 @@ key. Bank, then pull to turn, and roll out by hand. This is what the AI pilots f
   your whole load at one missile is no better than a single well-timed salvo. Eight
   salvos of four, three quarters of a second apart.
 - **The afterburner is a limited resource, not a throttle.** See below.
+- **Hits break things, not just the hull.** Rounds into the tail wreck the engine,
+  into the wings the controls, into the belly the fuel. A wrecked engine costs you
+  nearly half your top speed and locks out the burner; wrecked controls halve your
+  turn rate; a holed tank bleeds burner reserve. The three bars under HULL show
+  what is broken, and fly through a rearm ring to fix it.
 - **Terrain kills.** The `PULL UP` warning is not decorative.
 - The **bank scale** above the reticle shows true bank; the `G` reading is a load
   gauge (1 g relaxed, 9 g at the manoeuvring limit), not a physical load factor —
@@ -357,6 +362,7 @@ flies into a hill.
 - [x] AI terrain lookahead, so it pulls up for steep ground ahead of it rather than
       only reacting to what is directly beneath
 - [x] Procedural terrain, shader ocean, sky, stars and cloud layer
+- [x] Subsystem damage — engine, controls and fuel degrade by where you were hit
 - [x] Afterburner with a fuel budget, and an air brake, in place of a throttle axis
 - [x] Arcade flight model: bank-to-turn coordinated turns with auto-levelling,
       plus a raw rate-control mode, afterburner, stall-mushy controls, terrain crashes
