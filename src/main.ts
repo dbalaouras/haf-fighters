@@ -27,9 +27,11 @@ const resume = () => {
   overlay.hide();
   scoreboard.hide();
   game.paused = false;
-  input.requestLock();
-  // browsers only allow audio to start from a user gesture — this click is it
+  // Audio first: browsers only allow it to start from a user gesture, and this
+  // click is it. Pointer lock can throw outright when the browser refuses it, and
+  // starting audio must not be collateral damage of that.
   game.audio.resume();
+  input.requestLock();
 };
 
 const pause = () => {

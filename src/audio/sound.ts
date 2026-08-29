@@ -35,6 +35,7 @@ export class Sound {
   private roarFilter!: BiquadFilterNode;
   private roarTilt!: BiquadFilterNode;
   private burnerGain!: GainNode;
+  private burnerCrackle!: GainNode;
   private burnerFilter!: BiquadFilterNode;
   private burnerTilt!: BiquadFilterNode;
   private whineGain!: GainNode;
@@ -169,18 +170,30 @@ export class Sound {
     this.burnerTilt.type = 'lowpass';
     this.burnerTilt.frequency.value = 520;
     this.burnerTilt.Q.value = 0.7;
+    // The crackle rides on its own node ahead of the level node, and the level then
+    // multiplies it. Modulating the *level* directly cannot work: an AudioParam sums
+    // its connected signals on top of its intrinsic value, so driving the level to
+    // zero on pause still left the LFOs wobbling the burner around zero forever —
+    // an audible ~-60 dB whoosh that never decayed.
+    this.burnerCrackle = ctx.createGain();
+    this.burnerCrackle.gain.value = 1;
     this.burnerGain = ctx.createGain();
     this.burnerGain.gain.value = 0;
-    this.burnerFilter.connect(this.burnerTilt).connect(this.burnerGain).connect(this.master);
+    this.burnerFilter
+      .connect(this.burnerTilt)
+      .connect(this.burnerCrackle)
+      .connect(this.burnerGain)
+      .connect(this.master);
     this.loopNoise(this.burnerFilter, 0.55);
-    // two detuned LFOs sum into the gain so the crackle never sounds periodic
-    for (const [rate, depth] of [[6.5, 0.022], [11.3, 0.014]] as const) {
+    // two detuned LFOs, so the crackle never sounds periodic. Depths are relative
+    // now that they modulate a unit-gain node rather than the level itself.
+    for (const [rate, depth] of [[6.5, 0.16], [11.3, 0.1]] as const) {
       const lfo = ctx.createOscillator();
       lfo.type = 'sine';
       lfo.frequency.value = rate;
       const amt = ctx.createGain();
       amt.gain.value = depth;
-      lfo.connect(amt).connect(this.burnerGain.gain);
+      lfo.connect(amt).connect(this.burnerCrackle.gain);
       lfo.start();
     }
 

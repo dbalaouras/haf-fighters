@@ -70,9 +70,14 @@ export class Input {
   requestLock() {
     if (!this.lockAvailable) return;
     // Safari returns undefined here; Chromium returns a promise that can reject
-    // (e.g. inside an embedded frame) — fall back to absolute-cursor steering.
-    const r = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
-    r?.catch(() => { this.lockAvailable = false; });
+    // (e.g. inside an embedded frame) — and some browsers throw synchronously when
+    // there is no user activation. Fall back to absolute-cursor steering either way.
+    try {
+      const r = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+      r?.catch(() => { this.lockAvailable = false; });
+    } catch {
+      this.lockAvailable = false;
+    }
   }
 
   clearKeys() {
