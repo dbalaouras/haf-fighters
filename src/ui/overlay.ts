@@ -1,9 +1,10 @@
-import { CFG, GAME_NAME, MAP_NAME, MODE_NAME } from '../core/config';
+import { CFG, GAME_NAME, MODE_NAME } from '../core/config';
 import { MatchResult } from '../core/game';
 import { Settings } from '../core/settings';
 import { ACTIONS, ActionId, keyLabel } from '../core/bindings';
 import { MatchInfo, scoreboardHtml } from './scoreboard';
 import { MAX_NAME } from '../core/settings';
+import { MapId, MAPS, MAP_ORDER } from '../world/maps';
 
 /** Fixed, non-rebindable inputs. */
 const FIXED: ReadonlyArray<[string, string]> = [
@@ -26,7 +27,7 @@ const GEAR_ICON = `
 type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted'
   | 'sens-' | 'sens+' | 'vol-' | 'vol+' | 'reset' | `bind:${ActionId}`;
 
-type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back';
+type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back' | `map:${MapId}`;
 
 export class Overlay {
   private el: HTMLElement;
@@ -90,6 +91,11 @@ export class Overlay {
 
   private act(a: Act) {
     this.commitName();
+    if (a.startsWith('map:')) {
+      // rebuilding the world is not instant, so show the choice before it happens
+      this.settings.setMap(a.slice(4) as MapId);
+      return;
+    }
     switch (a) {
       case 'settings': this.view = 'settings'; this.render(); break;
       case 'back': this.view = 'main'; this.capturing = null; this.render(); break;
@@ -255,11 +261,23 @@ export class Overlay {
           ? `<div class="eyebrow">${GAME_NAME}</div><h1>PAUSED</h1>`
           : `<h1 class="game-title">${first} <span>${rest.join(' ')}</span></h1>`}
         <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME}</div>
-        <div class="sub dim">${MAP_NAME}</div>
+        <div class="sub dim">${MAPS[this.settings.data.mapId].name}</div>
       </div>
 
       <div class="rule"></div>
 
+      ${paused ? '' : `
+        <div class="maps">
+          ${MAP_ORDER.map((id) => {
+            const m = MAPS[id];
+            const on = this.settings.data.mapId === id;
+            return `<div class="map-card${on ? ' on' : ''}" data-act="map:${id}">
+              <b>${m.name.split(' — ')[0]}</b>
+              <i>${m.name.split(' — ')[1] ?? ''}</i>
+              <u>${m.blurb}</u>
+            </div>`;
+          }).join('')}
+        </div>`}
       ${paused
         ? `<div class="launch">
              <button class="act primary big" data-act="resume">RESUME</button>

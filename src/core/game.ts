@@ -5,6 +5,8 @@ import { Input } from './input';
 import { Terrain } from '../world/terrain';
 import { Sky } from '../world/sky';
 import { WaypointSystem } from '../world/waypoints';
+import { City } from '../world/city';
+import { MapId, MAPS, MapSpec } from '../world/maps';
 import { Aircraft } from '../entities/aircraft';
 import { Pilot } from '../ai/pilot';
 import { Fx } from '../combat/particles';
@@ -32,9 +34,12 @@ export class Game {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
 
-  private terrain = new Terrain();
-  private sky = new Sky();
-  private waypoints = new WaypointSystem(this.terrain);
+  private terrain!: Terrain;
+  private sky!: Sky;
+  private waypoints!: WaypointSystem;
+  private city: City | null = null;
+  private mapLights: THREE.Light[] = [];
+  mapId!: MapId;
   private fx = new Fx();
   private bullets = new BulletSystem();
   private missiles = new MissileSystem();
@@ -98,14 +103,12 @@ export class Game {
 
     this.camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, CFG.camera.near, CFG.camera.far);
 
-    this.scene.fog = new THREE.Fog(0x9db8d4, CFG.world.fogNear, CFG.world.fogFar);
-    this.scene.add(this.sky.group, this.terrain.mesh, this.terrain.water);
-    this.sky.addLights(this.scene);
     this.scene.add(this.fx.group, this.bullets.object, this.missiles.group);
-    this.scene.add(this.waypoints.group);
+    this.applyMap(settings.data.mapId);
 
     this.hud = new Hud(hudCanvas);
     this.spawnTeams();
+    settings.onChange((d) => { if (d.mapId !== this.mapId) this.applyMap(d.mapId); });
     this.player.name = settings.data.pilotName;
     settings.onChange((d) => { this.player.name = d.pilotName; });
 
@@ -115,6 +118,48 @@ export class Game {
       this.renderer.setSize(innerWidth, innerHeight);
     });
   }
+
+  /* ---------------- maps ---------------- */
+
+  /** Tear down the current world and build the chosen one in its place. */
+  applyMap(id: MapId) {
+    const spec: MapSpec = MAPS[id];
+    this.mapId = id;
+
+    if (this.terrain) {
+      this.scene.remove(this.terrain.mesh, this.terrain.water, this.sky.group, this.waypoints.group);
+      this.terrain.mesh.geometry.dispose();
+      (this.terrain.mesh.material as THREE.Material).dispose();
+      this.terrain.water.geometry.dispose();
+      (this.terrain.water.material as THREE.Material).dispose();
+      for (const l of this.mapLights) this.scene.remove(l);
+      this.mapLights = [];
+    }
+    if (this.city) {
+      this.scene.remove(this.city.group);
+      this.city.dispose();
+      this.city = null;
+    }
+
+    this.terrain = new Terrain(spec);
+    this.sky = new Sky(spec);
+    this.mapLights = this.sky.addLights(this.scene);
+    this.scene.fog = new THREE.Fog(spec.fog.color, spec.fog.near, spec.fog.far);
+    this.renderer.setClearColor(spec.fog.color);
+
+    if (spec.scenery === 'city') {
+      this.city = new City(spec);
+      this.terrain.setObstacles(this.city.solidHeight);
+      this.scene.add(this.city.group);
+    }
+
+    this.waypoints = new WaypointSystem(this.terrain);
+    this.scene.add(this.sky.group, this.terrain.mesh, this.terrain.water, this.waypoints.group);
+
+    if (this.player) this.reset();
+  }
+
+  get mapName(): string { return MAPS[this.mapId].name; }
 
   /* ---------------- setup ---------------- */
 
@@ -547,6 +592,7 @@ export class Game {
       score: this.score,
       timeLeft: Math.max(0, this.timeLeft),
       teams: this.standings(),
+      mapName: this.mapName,
       result,
     };
   }

@@ -171,6 +171,25 @@ The scroll wheel steps the radar through 2 / 4 / 6 / 10 / 16 km. The display sit
 the top-right corner with the current range printed under it, and the kill feed runs
 below it.
 
+## Maps
+
+Two, picked on the title screen. The choice is saved, and switching rebuilds the
+world in place rather than reloading.
+
+**Coral Range — Dawn.** The original: open water, volcanic islands rising to 1.5 km,
+long sightlines and a bright sky.
+
+**Neon Delta — Night.** A river city after dark. Around 3,300 lit towers on both
+banks, a meandering river, and a suspension bridge you can fly under — the deck sits
+78 m over the water. Buildings are solid: they collide, stop the camera clipping
+through them, and the AI avoids them, without the terrain mesh having to model them.
+The towers are drawn as three instanced meshes grouped by height, so the whole
+skyline costs a handful of draw calls rather than thousands.
+
+Adding a third map means writing a `MapSpec` in [`src/world/maps.ts`](src/world/maps.ts)
+— ground height, ground colour, sky and water palette, lighting and fog — rather than
+touching the world code.
+
 ## Rearm rings
 
 Four neutral rings hang over the map, oriented tangentially so they chain into a
@@ -261,8 +280,8 @@ key. Bank, then pull to turn, and roll out by hand. This is what the AI pilots f
 src/
   core/     config (all tuning), game loop & match state, input, settings,
             key bindings, math helpers
-  world/    procedural island terrain + shader ocean, sky dome & cloud layer,
-            rearm zones
+  world/    map specs, procedural terrain + shader ocean, sky dome / stars /
+            clouds, the night city and its bridge, rearm rings
   entities/ aircraft (flight model, damage, lock state), procedural jet mesh
   combat/   cannon rounds, guided missiles, decoy flares, particle FX
   audio/    synthesised engine, weapons and warning tones — no sample files
@@ -291,7 +310,9 @@ flies into a hill.
 ## Built so far
 
 - [x] Vite + TypeScript + Three.js scaffold
-- [x] Procedural island map, shader ocean, sky and cloud layer
+- [x] Two maps — day islands and a night river city with a flyable-under bridge —
+      switchable from the title screen, driven by a map spec
+- [x] Procedural terrain, shader ocean, sky, stars and cloud layer
 - [x] Afterburner with a fuel budget, and an air brake, in place of a throttle axis
 - [x] Arcade flight model: bank-to-turn coordinated turns with auto-levelling,
       plus a raw rate-control mode, afterburner, stall-mushy controls, terrain crashes

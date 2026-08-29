@@ -146,8 +146,6 @@ export const CFG = {
   world: {
     size: 24000,
     segments: 220,
-    fogNear: 3000,
-    fogFar: 22000,
   },
 } as const;
 
@@ -156,7 +154,6 @@ export const GAME_NAME = 'HAF FIGHTERS';
 /** The one airframe everyone flies, shown in the scoreboard's aircraft column. */
 export const AIRFRAME = 'FA-9';
 
-export const MAP_NAME = 'CORAL RANGE — DAWN';
 export const MODE_NAME = 'TEAM DEATHMATCH';
 
 export type TeamId = 'BLUE' | 'RED';

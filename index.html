@@ -169,6 +169,28 @@
         background: linear-gradient(90deg, transparent, rgba(120,190,255,.4), transparent);
       }
 
+      /* ---- map picker ---- */
+      .maps { display: flex; gap: 10px; justify-content: center; margin-top: 24px; }
+      .map-card {
+        flex: 1 1 0; min-width: 0; cursor: pointer; padding: 11px 12px; text-align: left;
+        border: 1px solid rgba(120,190,255,.2); border-radius: 2px;
+        background: rgba(6,14,24,.5); transition: border-color .15s, background .15s;
+      }
+      .map-card:hover { border-color: rgba(120,190,255,.42); background: rgba(8,20,30,.7); }
+      .map-card.on { border-color: rgba(127,227,176,.7); background: rgba(18,40,36,.55); }
+      .map-card b {
+        display: block; font-size: 11.5px; font-weight: 500; letter-spacing: .14em; color: #cfe6ff;
+      }
+      .map-card.on b { color: #9ff0a8; }
+      .map-card i {
+        display: block; font-style: normal; font-size: 9px; letter-spacing: .22em;
+        color: #5d84a8; margin-top: 3px;
+      }
+      .map-card u {
+        display: block; text-decoration: none; font-size: 9.5px; line-height: 1.5;
+        color: #47688a; margin-top: 6px;
+      }
+
       /* the input and the button share a width, so they sit on one centre line */
       .launch {
         display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 26px;

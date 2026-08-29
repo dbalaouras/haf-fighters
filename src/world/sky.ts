@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { CFG } from '../core/config';
 import { rand } from '../core/mathx';
+import { MapSpec } from './maps';
 
 /**
  * Gradient sky dome + sun disc + a cloud layer.
@@ -10,12 +10,59 @@ import { rand } from '../core/mathx';
  */
 export class Sky {
   readonly group = new THREE.Group();
-  readonly sunDirection = new THREE.Vector3(0.45, 0.62, 0.65).normalize();
-  readonly horizonColor = new THREE.Color(0x9db8d4);
+  readonly sunDirection: THREE.Vector3;
+  readonly horizonColor: THREE.Color;
 
-  constructor() {
+  constructor(readonly spec: MapSpec) {
+    this.sunDirection = spec.sky.light.clone();
+    this.horizonColor = new THREE.Color(spec.sky.horizon);
     this.group.add(this.buildDome());
-    this.group.add(this.buildClouds(340));
+    if (spec.sky.stars > 0) this.group.add(this.buildStars(spec.sky.stars));
+    if (spec.sky.clouds > 0) this.group.add(this.buildClouds(spec.sky.clouds));
+  }
+
+  /** Sparse points on the dome. One draw call, and it sells a night sky on its own. */
+  private buildStars(count: number): THREE.Points {
+    const pos = new Float32Array(count * 3);
+    const size = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      // biased towards the upper hemisphere so none sit under the horizon
+      const u = Math.random() * 2 - 1;
+      const phi = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      const y = Math.abs(u) * 0.9 + 0.06;
+      pos[i * 3] = Math.cos(phi) * r * 30000;
+      pos[i * 3 + 1] = y * 30000;
+      pos[i * 3 + 2] = Math.sin(phi) * r * 30000;
+      size[i] = rand(0.5, 2.4);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e9);
+
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+      vertexShader: `
+        attribute float aSize;
+        varying float vS;
+        void main() {
+          vS = aSize;
+          gl_PointSize = aSize;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        varying float vS;
+        void main() {
+          vec2 d = gl_PointCoord - 0.5;
+          float a = clamp(1.0 - length(d) * 2.2, 0.0, 1.0);
+          gl_FragColor = vec4(vec3(0.85, 0.9, 1.0), a * min(1.0, vS * 0.5));
+        }`,
+    });
+    const pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    pts.renderOrder = -3;
+    return pts;
   }
 
   private buildDome(): THREE.Mesh {
@@ -25,10 +72,14 @@ export class Sky {
       depthWrite: false,
       fog: false,
       uniforms: {
-        uTop: { value: new THREE.Color(0x1d4f8f) },
-        uMid: { value: new THREE.Color(0x76a8d8) },
+        uTop: { value: new THREE.Color(this.spec.sky.top) },
+        uMid: { value: new THREE.Color(this.spec.sky.mid) },
         uBottom: { value: this.horizonColor },
         uSun: { value: this.sunDirection },
+        uDisc: { value: new THREE.Color(this.spec.sky.discColor) },
+        uDiscPower: { value: this.spec.sky.discPower },
+        uDiscStrength: { value: this.spec.sky.discStrength },
+        uHalo: { value: this.spec.sky.haloStrength },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -39,6 +90,8 @@ export class Sky {
       `,
       fragmentShader: /* glsl */ `
         uniform vec3 uTop; uniform vec3 uMid; uniform vec3 uBottom; uniform vec3 uSun;
+        uniform vec3 uDisc;
+        uniform float uDiscPower; uniform float uDiscStrength; uniform float uHalo;
         varying vec3 vDir;
         void main() {
           vec3 d = normalize(vDir);
@@ -47,7 +100,9 @@ export class Sky {
           col = mix(col, uTop, smoothstep(0.6, 0.98, h));
           float lobe = clamp(dot(d, normalize(uSun)), 0.0, 1.0);
           // tight disc + tight bloom + broad haze, rather than one huge blown-out blob
-          col += vec3(1.0, 0.94, 0.8) * (pow(lobe, 12000.0) * 3.2 + pow(lobe, 1200.0) * 0.55 + pow(lobe, 14.0) * 0.3);
+          col += uDisc * (pow(lobe, uDiscPower) * uDiscStrength
+                          + pow(lobe, 1200.0) * 0.4
+                          + pow(lobe, 14.0) * uHalo);
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -104,8 +159,10 @@ export class Sky {
       side: THREE.DoubleSide,
       uniforms: {
         uFogColor: { value: this.horizonColor },
-        uFogNear: { value: CFG.world.fogNear * 2 },
-        uFogFar: { value: CFG.world.fogFar * 1.4 },
+        uFogNear: { value: this.spec.fog.near * 2 },
+        uFogFar: { value: this.spec.fog.far * 1.4 },
+        uTint: { value: new THREE.Color(this.spec.sky.cloudColor) },
+        uOpacity: { value: this.spec.sky.cloudOpacity },
       },
       vertexShader: /* glsl */ `
         attribute vec3 aCenter;
@@ -127,6 +184,8 @@ export class Sky {
         uniform vec3 uFogColor;
         uniform float uFogNear;
         uniform float uFogFar;
+        uniform vec3 uTint;
+        uniform float uOpacity;
         varying vec2 vUv;
         varying float vSeed;
         varying float vDist;
@@ -146,10 +205,10 @@ export class Sky {
           if (m < 0.01) discard;
 
           // lit from above: brighter towards the top of the puff
-          vec3 col = mix(vec3(0.85, 0.89, 0.95), vec3(1.0), smoothstep(0.2, 0.85, vUv.y));
+          vec3 col = mix(uTint * 0.85, uTint, smoothstep(0.2, 0.85, vUv.y));
           float fog = smoothstep(uFogNear, uFogFar, vDist);
           col = mix(col, uFogColor, fog);
-          gl_FragColor = vec4(col, m * 0.5 * (1.0 - fog * 0.5));
+          gl_FragColor = vec4(col, m * uOpacity * (1.0 - fog * 0.5));
         }
       `,
     });
@@ -160,10 +219,13 @@ export class Sky {
     return mesh;
   }
 
-  addLights(scene: THREE.Scene) {
-    const sun = new THREE.DirectionalLight(0xfff3dd, 2.1);
+  /** @returns the lights, so they can be removed again on a map change */
+  addLights(scene: THREE.Scene): THREE.Light[] {
+    const L = this.spec.light;
+    const sun = new THREE.DirectionalLight(L.sunColor, L.sunIntensity);
     sun.position.copy(this.sunDirection).multiplyScalar(1000);
-    scene.add(sun);
-    scene.add(new THREE.HemisphereLight(0xa8ccf0, 0x2a3a30, 1.15));
+    const hemi = new THREE.HemisphereLight(L.skyColor, L.groundColor, L.hemiIntensity);
+    scene.add(sun, hemi);
+    return [sun, hemi];
   }
 }

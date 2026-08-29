@@ -1,5 +1,6 @@
 import { clamp01 } from './mathx';
 import { ActionId, Bindings, defaultBindings } from './bindings';
+import { MapId, MAPS } from '../world/maps';
 
 export const MAX_NAME = 14;
 export const DEFAULT_NAME = 'VIPER';
@@ -18,6 +19,7 @@ export function sanitizeName(raw: string): string {
 export interface SettingsData {
   /** the player's callsign, shown on the HUD, scoreboard and kill feed */
   pilotName: string;
+  mapId: MapId;
   /** pulling back on the mouse raises the nose when false */
   invertPitch: boolean;
   invertRoll: boolean;
@@ -36,6 +38,7 @@ const LEGACY_KEYS = ['harfighters.settings.v1', 'skyclash.settings.v2'];
 
 const DEFAULTS: SettingsData = {
   pilotName: DEFAULT_NAME,
+  mapId: 'CORAL',
   invertPitch: false,
   invertRoll: false,
   assist: true,
@@ -76,6 +79,7 @@ export class Settings {
       this.data.sensitivity = clamp01(this.data.sensitivity);
       this.data.volume = clamp01(this.data.volume);
       this.data.pilotName = sanitizeName(this.data.pilotName);
+      if (!MAPS[this.data.mapId]) this.data.mapId = DEFAULTS.mapId;
     } catch {
       // private browsing / blocked storage — defaults are fine
     }
@@ -106,6 +110,8 @@ export class Settings {
   nudgeSensitivity(delta: number) {
     this.set('sensitivity', clamp01(this.data.sensitivity + delta));
   }
+
+  setMap(id: MapId) { this.set('mapId', id); }
 
   setPilotName(raw: string) {
     this.set('pilotName', sanitizeName(raw));

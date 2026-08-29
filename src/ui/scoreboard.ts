@@ -1,4 +1,4 @@
-import { AIRFRAME, CFG, MAP_NAME, MODE_NAME, TEAM, TeamId } from '../core/config';
+import { AIRFRAME, CFG, MODE_NAME, TEAM, TeamId } from '../core/config';
 import { fmtTime } from '../core/mathx';
 
 export interface PilotRow {
@@ -16,6 +16,7 @@ export interface MatchInfo {
   score: Record<TeamId, number>;
   timeLeft: number;
   teams: Array<{ team: TeamId; css: string; pilots: PilotRow[] }>;
+  mapName: string;
   /** shown in place of the running clock once the match is decided */
   result?: 'VICTORY' | 'DEFEAT' | 'DRAW';
 }
@@ -63,7 +64,7 @@ export function scoreboardHtml(info: MatchInfo): string {
   return `
     <div class="sb">
       <div class="sb-head">
-        <div class="sb-mode">${MODE_NAME}<span>${MAP_NAME}</span></div>
+        <div class="sb-mode">${MODE_NAME}<span>${info.mapName}</span></div>
         <div class="sb-score">
           <b class="blue">${info.score.BLUE}</b>
           <span>${info.result ?? lead}</span>
