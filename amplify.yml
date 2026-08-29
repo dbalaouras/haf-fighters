@@ -1,0 +1,23 @@
+# AWS Amplify Hosting build spec.
+#
+# HAR Fighters is a purely static single-page app: `npm run build` emits an index.html
+# and one hashed JS bundle, and nothing is fetched at runtime. There is no backend,
+# no API, and no environment variables to configure.
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # `npm ci` needs package-lock.json, which is committed
+        - npm ci
+    build:
+      commands:
+        # runs `tsc --noEmit && vite build`
+        - npm run build
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*

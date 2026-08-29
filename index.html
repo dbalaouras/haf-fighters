@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>HAR Fighters — 5v5 Dogfight</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #05070c; }
+      body { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; color: #cfe6ff; }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; }
+      #scene { position: absolute; inset: 0; }
+      #hud { position: absolute; inset: 0; pointer-events: none; }
+      #overlay {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: radial-gradient(ellipse at center, rgba(6,12,22,.82), rgba(2,4,8,.96));
+        backdrop-filter: blur(3px); z-index: 10; cursor: pointer;
+      }
+      #overlay.hidden { display: none; }
+
+      .panel {
+        width: min(780px, 94vw); max-height: 94vh; overflow-y: auto; overflow-x: hidden;
+        border: 1px solid rgba(120,190,255,.28); background: rgba(8,16,28,.82); padding: 26px 30px;
+      }
+      .panel h1 { font-size: 32px; letter-spacing: .3em; font-weight: 600; color: #eaf5ff; }
+      .panel .sub { margin-top: 6px; color: #6f9dc8; font-size: 11px; letter-spacing: .22em; }
+
+      .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin: 22px 0 18px; }
+      @media (max-width: 620px) { .cols { grid-template-columns: 1fr; gap: 18px; } }
+
+      .block { min-width: 0; }
+      .bhead {
+        font-size: 10px; letter-spacing: .26em; text-transform: uppercase;
+        color: #7fe3b0; padding-bottom: 7px; margin-bottom: 4px;
+        border-bottom: 1px solid rgba(127,227,176,.22);
+      }
+
+      .srow {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 6px 6px 6px 2px; margin: 0 -6px 0 -2px; font-size: 12.5px;
+        border-bottom: 1px dashed rgba(120,190,255,.1); border-radius: 3px;
+      }
+      .srow:not(.static) { cursor: pointer; }
+      .srow:not(.static):hover { background: rgba(127,227,176,.09); }
+      .srow span { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+      .srow span i { font-style: normal; font-size: 9.5px; letter-spacing: .12em; color: #4e739a; }
+
+      .srow em { font-style: normal; font-size: 11px; letter-spacing: .12em; white-space: nowrap; }
+      .srow em.on { color: #8ff0b4; }
+      .srow em.off { color: #5b7793; }
+      .srow em.key { color: #7fd4ff; }
+
+      .stepper { display: flex; align-items: center; gap: 8px; }
+      .stepper b {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 19px; height: 19px; font-weight: 400; font-size: 13px; cursor: pointer;
+        border: 1px solid rgba(127,227,176,.4); color: #8ff0b4; border-radius: 2px;
+      }
+      .stepper b:hover { background: rgba(127,227,176,.16); }
+      .stepper u { text-decoration: none; font-size: 11px; color: #cfe6ff; min-width: 34px; text-align: right; }
+
+      .bsub {
+        font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase;
+        color: #4e739a; margin: 12px 0 4px;
+      }
+      .srow em.key.capturing { color: #ffd166; animation: blink 0.7s infinite; }
+      .srow em.key.unbound { color: #7d5560; }
+
+      .sreset {
+        display: inline-block; margin-top: 10px; font-size: 10px; letter-spacing: .16em;
+        color: #5b7793; cursor: pointer; text-transform: uppercase;
+      }
+      .sreset:hover { color: #9fb8d0; }
+
+      /* ---- action buttons ---- */
+      .acts { display: flex; gap: 10px; justify-content: center; margin: 4px 0 12px; }
+      .act {
+        font: inherit; font-size: 12px; letter-spacing: .2em; cursor: pointer;
+        padding: 10px 22px; background: transparent; color: #9fb8d0;
+        border: 1px solid rgba(120,190,255,.32); border-radius: 2px;
+      }
+      .act:hover { background: rgba(127,227,176,.1); color: #dffff0; }
+      .act.primary { color: #9ff0a8; border-color: rgba(127,227,176,.55); }
+      .act.primary:hover { background: rgba(127,227,176,.18); }
+      .panel.wide { width: min(1120px, 96vw); }
+
+      /* ---- scoreboard ---- */
+      #scoreboard {
+        position: absolute; inset: 0; z-index: 9; display: flex;
+        align-items: center; justify-content: center; pointer-events: none;
+        background: rgba(4, 9, 16, .72); backdrop-filter: blur(2px);
+      }
+      #scoreboard.hidden { display: none; }
+      /* inside a panel it fills the panel; standalone it sizes itself */
+      .sb { width: 100%; }
+      #scoreboard .sb {
+        width: min(1120px, 95vw);
+        border: 1px solid rgba(120,190,255,.22); background: rgba(8,16,28,.82); padding: 20px 24px;
+      }
+      .sb-head {
+        display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+        padding-bottom: 14px; margin-bottom: 14px;
+        border-bottom: 1px solid rgba(120,190,255,.16);
+      }
+      .sb-mode { font-size: 13px; letter-spacing: .2em; color: #eaf5ff; }
+      .sb-mode span { display: block; font-size: 10px; letter-spacing: .22em; color: #5d84a8; margin-top: 4px; }
+      .sb-score { display: flex; align-items: center; gap: 18px; }
+      .sb-score b { font-size: 30px; font-weight: 500; }
+      .sb-score b.blue { color: #5ab6ff; }
+      .sb-score b.red { color: #ff7a66; }
+      .sb-score span { font-size: 17px; letter-spacing: .26em; color: #eaf5ff; }
+      .sb-meta { text-align: right; font-size: 13px; letter-spacing: .16em; color: #eaf5ff; }
+      .sb-meta span { display: block; font-size: 10px; letter-spacing: .22em; color: #5d84a8; margin-top: 4px; }
+
+      .sb-tables { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      @media (max-width: 780px) { .sb-tables { grid-template-columns: 1fr; } }
+
+      .sb-row {
+        display: grid; grid-template-columns: 1fr 78px 92px 74px; align-items: center;
+        gap: 8px; padding: 8px 10px; font-size: 12.5px; border-bottom: 1px solid rgba(0,0,0,.25);
+      }
+      .sb-team.blue .sb-row { background: rgba(56,132,196,.24); }
+      .sb-team.red .sb-row { background: rgba(196,78,60,.24); }
+      .sb-row.sb-th {
+        background: transparent !important; color: #7fa6c8; font-size: 10px;
+        letter-spacing: .18em; border-bottom: 1px solid rgba(120,190,255,.2);
+      }
+      .sb-team.blue .sb-row.me { background: rgba(120,200,255,.44); }
+      .sb-team.red .sb-row.me { background: rgba(255,130,110,.4); }
+      .sb-row.me { box-shadow: inset 2px 0 0 #eaf5ff; }
+      .sb-row.down { opacity: .55; }
+      .sb-name { display: flex; align-items: center; gap: 8px; color: #eaf5ff; min-width: 0; }
+      .sb-name u {
+        text-decoration: none; font-size: 9.5px; letter-spacing: .14em;
+        color: #ffb3a6; border: 1px solid rgba(255,140,120,.4); padding: 1px 5px; border-radius: 2px;
+      }
+      .sb-air, .sb-kda, .sb-pts { text-align: right; color: #cfe6ff; }
+      .sb-air { color: #9fb8d0; }
+      .sb-pts { color: #fff; }
+      .sb-rank {
+        font-style: normal; display: inline-flex; align-items: center; justify-content: center;
+        width: 17px; height: 17px; border-radius: 50%; font-size: 10px; color: #201a05; flex: none;
+      }
+      .sb-rank.gold { background: #ffd166; }
+      .sb-rank.silver { background: #cfd8e3; }
+      .sb-rank.bronze { background: #d2955c; }
+
+      /* ---- title screen ---- */
+      .title-panel { position: relative; text-align: center; padding: 48px 40px 34px; }
+      @media (max-width: 520px) { .title-panel { padding: 42px 20px 28px; } }
+      .title-panel .sub { margin-top: 10px; }
+      .eyebrow { font-size: 11px; letter-spacing: .38em; color: #5d84a8; margin-bottom: 10px; }
+      .game-title {
+        font-size: clamp(22px, 6.2vw, 58px); font-weight: 600; line-height: 1.08;
+        letter-spacing: .14em; color: #7fe3b0; white-space: nowrap;
+      }
+      .game-title span { color: #eaf5ff; }
+      .hint {
+        margin-top: 26px; font-size: 11px; letter-spacing: .08em; color: #6f9dc8; line-height: 2;
+      }
+      .hint b { color: #9ff0a8; font-weight: 500; }
+      .fineprint { margin-top: 12px; font-size: 10px; letter-spacing: .16em; color: #4e739a; }
+
+      .gear {
+        position: absolute; top: 16px; right: 16px; width: 38px; height: 38px;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        background: transparent; color: #7fa6c8; border: 1px solid rgba(120,190,255,.28);
+        border-radius: 50%; transition: color .15s, border-color .15s, transform .35s;
+      }
+      .gear:hover { color: #9ff0a8; border-color: rgba(127,227,176,.6); transform: rotate(60deg); }
+
+      .panel-head { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+      .panel-head h2 { font-size: 14px; letter-spacing: .32em; color: #eaf5ff; font-weight: 500; }
+
+      .act.big { padding: 14px 42px; font-size: 14px; }
+      .act.ghost { padding: 7px 14px; font-size: 10px; border-color: rgba(120,190,255,.2); }
+
+      .note {
+        margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(120,190,255,.12);
+        font-size: 11px; color: #5d84a8; line-height: 1.7;
+      }
+      .note b { color: #8ff0b4; font-weight: 500; }
+      .note i { color: #9fb8d0; }
+      @keyframes blink { 50% { opacity: .32; } }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <canvas id="hud"></canvas>
+      <div id="scoreboard" class="hidden"></div>
+      <div id="overlay"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
