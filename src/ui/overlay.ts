@@ -19,12 +19,33 @@ const FIXED: ReadonlyArray<[string, string]> = [
   ['Pause', 'Esc'],
 ];
 
+/**
+ * Cog outline for the settings button. Built from the tooth geometry rather
+ * than pasted path data so the proportions stay tunable: each tooth rises from
+ * the root circle to a flat tip, with an arc across the tip and another across
+ * the valley between teeth. The earlier icon was a ring with thin radiating
+ * spokes, which read as a brightness control rather than a gear.
+ */
+function cogPath(teeth = 8, rTip = 10.2, rRoot = 7.5, tipHalf = 8.5, rootHalf = 14.5): string {
+  const at = (deg: number, r: number) => {
+    const a = (deg * Math.PI) / 180;
+    return `${(12 + r * Math.cos(a)).toFixed(2)} ${(12 + r * Math.sin(a)).toFixed(2)}`;
+  };
+  const step = 360 / teeth;
+  let d = `M ${at(-90 - rootHalf, rRoot)}`;
+  for (let i = 0; i < teeth; i++) {
+    const c = i * step - 90;
+    d += ` L ${at(c - tipHalf, rTip)} A ${rTip} ${rTip} 0 0 1 ${at(c + tipHalf, rTip)}`;
+    d += ` L ${at(c + rootHalf, rRoot)} A ${rRoot} ${rRoot} 0 0 1 ${at(c + step - rootHalf, rRoot)}`;
+  }
+  return `${d} Z`;
+}
+
 const GEAR_ICON = `
   <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-       stroke-width="1.5" stroke-linecap="round">
-    <circle cx="12" cy="12" r="3.3"/>
-    <path d="M12 2.6v2.7M12 18.7v2.7M21.4 12h-2.7M5.3 12H2.6
-             M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9M18.6 18.6l-1.9-1.9M7.3 7.3L5.4 5.4"/>
+       stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="${cogPath()}"/>
+    <circle cx="12" cy="12" r="3.1"/>
   </svg>`;
 
 type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted'
