@@ -9,7 +9,6 @@ export interface Waypoint {
   /** ring normal — you have to cross this plane inside the hoop */
   axis: THREE.Vector3;
   ring: THREE.Mesh;
-  beacon: THREE.Mesh;
   /** seconds until the ring is usable again */
   cooldown: number;
   /** eased 0..1 flash right after a pass */
@@ -39,9 +38,10 @@ export class WaypointSystem {
 
   constructor(terrain: Terrain) {
     const R = CFG.resupply;
+    // The ring is the whole marker. A vertical light column used to stand in for it,
+    // back when a single flat torus was invisible edge-on; the three-axis cage solved
+    // that on its own and left the column as scaffolding that read as its own object.
     const ringGeo = new THREE.TorusGeometry(R.ringRadius, R.tube, 8, 56);
-    const beaconGeo = new THREE.CylinderGeometry(16, 40, 2400, 12, 1, true);
-    beaconGeo.translate(0, 1200, 0);
 
     for (let i = 0; i < R.count; i++) {
       const a = (i / R.count) * Math.PI * 2 + Math.PI / 4;
@@ -61,15 +61,9 @@ export class WaypointSystem {
       ring.position.set(x, y, z);
       ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
 
-      const beacon = new THREE.Mesh(beaconGeo, new THREE.MeshBasicMaterial({
-        color: READY.clone(), transparent: true, opacity: 0.16,
-        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-      }));
-      beacon.position.set(x, y, z);
-
-      this.group.add(ring, beacon);
+      this.group.add(ring);
       this.points.push({
-        pos: new THREE.Vector3(x, y, z), axis, ring, beacon, cooldown: 0, flash: 0,
+        pos: new THREE.Vector3(x, y, z), axis, ring, cooldown: 0, flash: 0,
       });
     }
   }
@@ -152,10 +146,6 @@ export class WaypointSystem {
       // a quick pop on the frame it is used, so a pass reads as an event
       const s = 1 + wp.flash * 0.12;
       wp.ring.scale.set(s, s, s);
-
-      const bm = wp.beacon.material as THREE.MeshBasicMaterial;
-      bm.color.copy(COLD).lerp(READY, ready);
-      bm.opacity = (cooling ? 0.05 + 0.1 * ready : 0.16) + wp.flash * 0.15;
     }
   }
 
