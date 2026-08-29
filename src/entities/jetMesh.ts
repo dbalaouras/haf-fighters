@@ -170,9 +170,11 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
       parts.push(tip);
 
       if (shape.tail === 'twin') {
+        // rotateZ(pi/2) stands the fin up; the cant then has to SUBTRACT on the
+        // +x side, since both rotations are about the same axis and adding would
+        // lean each fin inward until the pair crossed over the spine.
         const f = panel(FIN, 0.16);
-        f.rotateZ(Math.PI / 2);
-        f.rotateZ(side * shape.finCant);
+        f.rotateZ(Math.PI / 2 - side * shape.finCant);
         f.translate(side * 1.1, 0.5, 0);
         parts.push(f);
       }
