@@ -10,6 +10,8 @@ interface Block {
   top: number;
 }
 
+const _sphere = new THREE.Sphere();
+
 const BRIDGE_X = 0;
 const BRIDGE_HALF_WIDTH = 240;   // keep towers clear of buildings
 const DECK_Y = 78;
@@ -26,6 +28,25 @@ export class City {
   /** blocks bucketed into a coarse grid, so height lookups stay O(1) */
   private grid = new Map<number, Block[]>();
   private readonly cell = 600;
+
+  /**
+   * Per height class: the mesh, every instance's precomputed matrix, and a
+   * bounding sphere each. Culling repacks the visible matrices into the front
+   * of the buffer and lowers `count`, which keeps the draw call budget at three
+   * — measured, the renderer here is bound by submission rather than fill (a
+   * 67x increase in pixels cost only 1.7x the time), so splitting the towers
+   * into per-cell meshes would have traded a real cost for an imaginary one.
+   */
+  private tiers: Array<{
+    mesh: THREE.InstancedMesh;
+    matrices: Float32Array;
+    centres: Float32Array;   // x, y, z, radius per instance
+    cutoff: number;          // draw distance; Infinity today, see buildTowers
+  }> = [];
+  private lastCullPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private lastCullQuat = new THREE.Quaternion();
+  private frustum = new THREE.Frustum();
+  private projScreen = new THREE.Matrix4();
 
   constructor(spec: MapSpec, extent = 11000) {
     this.buildBlocks(spec, extent);
@@ -101,10 +122,19 @@ export class City {
    * square instead of being stretched by the instance scale.
    */
   private buildTowers(): THREE.InstancedMesh[] {
+    /*
+     * Draw distance is deliberately unlimited. The obvious LOD move is to stop
+     * drawing low-rise past a few kilometres, but the numbers do not support it
+     * on a map this size: at 6 km the fog still leaves a building 74% visible
+     * and 11 px tall, and the fog does not actually hide anything until about
+     * 15 km — past the 11 km edge of the world. Cutting at 6 km removed 84% of
+     * the in-frustum towers, all of them still plainly there to see. The frustum
+     * cull below is free; a distance cull here would only be visible.
+     */
     const classes = [
-      { name: 'low', max: 110, rows: 6 },
-      { name: 'mid', max: 200, rows: 12 },
-      { name: 'high', max: Infinity, rows: 22 },
+      { name: 'low', max: 110, rows: 6, cutoff: Infinity },
+      { name: 'mid', max: 200, rows: 12, cutoff: Infinity },
+      { name: 'high', max: Infinity, rows: 22, cutoff: Infinity },
     ];
     const dummy = new THREE.Object3D();
     const meshes: THREE.InstancedMesh[] = [];
@@ -120,17 +150,25 @@ export class City {
         map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.15,
       });
       const mesh = new THREE.InstancedMesh(geo, mat, members.length);
-      mesh.frustumCulled = false;
+      mesh.frustumCulled = false;   // culling is done per instance, below
 
+      const matrices = new Float32Array(members.length * 16);
+      const centres = new Float32Array(members.length * 4);
       members.forEach((b, i) => {
         dummy.position.set(b.x, b.ground + b.height / 2, b.z);
         dummy.scale.set(b.halfX * 2, b.height, b.halfZ * 2);
         dummy.rotation.set(0, 0, 0);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
+        dummy.matrix.toArray(matrices, i * 16);
+        centres[i * 4] = b.x;
+        centres[i * 4 + 1] = b.ground + b.height / 2;
+        centres[i * 4 + 2] = b.z;
+        centres[i * 4 + 3] = Math.hypot(b.halfX, b.halfZ, b.height / 2);
       });
       mesh.instanceMatrix.needsUpdate = true;
       meshes.push(mesh);
+      this.tiers.push({ mesh, matrices, centres, cutoff: cls.cutoff });
     }
     return meshes;
   }
@@ -263,6 +301,52 @@ export class City {
   /* ---------------- collision ---------------- */
 
   /** Solid height at a point: the top of a building if inside one, else far below. */
+  /**
+   * Frustum- and distance-cull the towers, repacking the survivors into the
+   * front of each instance buffer. Recomputed only when the camera has actually
+   * moved or turned, since at 300 m/s the visible set is stable for a good
+   * fraction of a second and rewriting 3,300 matrices every frame would cost
+   * more than it saves.
+   */
+  update(camera: THREE.Camera) {
+    const movedFar = camera.position.distanceToSquared(this.lastCullPos) > 120 * 120;
+    const turned = Math.abs(this.lastCullQuat.dot(camera.quaternion)) < 0.999;  // ~5 degrees
+    if (!movedFar && !turned) return;
+    this.lastCullPos.copy(camera.position);
+    this.lastCullQuat.copy(camera.quaternion);
+
+    this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.projScreen);
+    const cam = camera.position;
+
+    for (const tier of this.tiers) {
+      const { mesh, matrices, centres, cutoff } = tier;
+      const total = centres.length / 4;
+      const dst = mesh.instanceMatrix.array as Float32Array;
+      let n = 0;
+      for (let i = 0; i < total; i++) {
+        const o = i * 4;
+        const x = centres[o], y = centres[o + 1], z = centres[o + 2], r = centres[o + 3];
+        const dx = x - cam.x, dy = y - cam.y, dz = z - cam.z;
+        if (dx * dx + dy * dy + dz * dz > cutoff * cutoff) continue;
+        _sphere.center.set(x, y, z);
+        _sphere.radius = r;
+        if (!this.frustum.intersectsSphere(_sphere)) continue;
+        dst.set(matrices.subarray(i * 16, i * 16 + 16), n * 16);
+        n++;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /** How many tower instances the last cull left to draw, and out of how many. */
+  get instanceLoad(): { drawn: number; total: number } {
+    let drawn = 0, total = 0;
+    for (const t of this.tiers) { drawn += t.mesh.count; total += t.centres.length / 4; }
+    return { drawn, total };
+  }
+
   solidHeight = (x: number, z: number): number => {
     let best = -1e6;
     // a footprint can straddle a cell boundary, so check the neighbours too
