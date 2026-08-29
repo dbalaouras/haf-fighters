@@ -147,13 +147,15 @@
       .sb-rank.bronze { background: #d2955c; }
 
       /* ---- title screen ---- */
+      /* Wide and short by design: the selectors sit side by side so the whole
+         screen — including Enter Battle — fits without a scrollbar. */
       .title-panel {
         position: relative; text-align: center;
-        width: min(560px, 92vw); padding: 52px 46px 38px;
+        width: min(980px, 95vw); padding: 34px 40px 26px;
       }
-      @media (max-width: 520px) { .title-panel { padding: 40px 22px 30px; } }
+      .title-panel.narrow { width: min(520px, 92vw); padding: 46px 40px 34px; }
 
-      .title-block { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+      .title-block { display: flex; flex-direction: column; align-items: center; gap: 7px; }
       .title-panel .sub { margin: 0; }
       .title-panel .sub.dim { color: #4e739a; font-size: 10px; }
       .eyebrow { font-size: 11px; letter-spacing: .38em; color: #5d84a8; }
@@ -172,48 +174,61 @@
       .game-title span { color: #eaf5ff; }
 
       .rule {
-        width: 74px; height: 1px; margin: 26px auto 0;
+        width: 74px; height: 1px; margin: 18px auto 0;
         background: linear-gradient(90deg, transparent, rgba(120,190,255,.4), transparent);
       }
 
-      /* ---- difficulty segmented control ---- */
-      .seg {
-        display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 26px;
+      /* ---- selection columns ---- */
+      .choices {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: 12px; margin-top: 22px; text-align: left;
       }
-      .seg-label {
-        font-size: 9.5px; letter-spacing: .3em; color: #5d84a8; text-transform: uppercase;
-      }
-      .seg-opts { display: flex; gap: 0; border: 1px solid rgba(120,190,255,.22); border-radius: 2px; }
-      .seg-opt {
-        font: inherit; font-size: 10.5px; letter-spacing: .2em; cursor: pointer;
-        padding: 8px 18px; background: transparent; color: #7fa6c8; border: 0;
-        border-right: 1px solid rgba(120,190,255,.16); transition: background .15s, color .15s;
-      }
-      .seg-opt:last-child { border-right: 0; }
-      .seg-opt:hover { background: rgba(127,227,176,.08); color: #cfe6ff; }
-      .seg-opt.on { background: rgba(127,227,176,.16); color: #9ff0a8; }
-      .seg-note { font-size: 10px; color: #47688a; text-align: center; max-width: 320px; }
 
-      /* ---- map picker ---- */
-      .maps { display: flex; gap: 10px; justify-content: center; margin-top: 24px; }
-      .map-card {
-        flex: 1 1 0; min-width: 0; cursor: pointer; padding: 11px 12px; text-align: left;
-        border: 1px solid rgba(120,190,255,.2); border-radius: 2px;
-        background: rgba(6,14,24,.5); transition: border-color .15s, background .15s;
+      .choice { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+      .choice-head {
+        font-size: 9.5px; letter-spacing: .26em; text-transform: uppercase;
+        color: #5d84a8; padding-bottom: 4px;
+        border-bottom: 1px solid rgba(120,190,255,.14);
       }
-      .map-card:hover { border-color: rgba(120,190,255,.42); background: rgba(8,20,30,.7); }
-      .map-card.on { border-color: rgba(127,227,176,.7); background: rgba(18,40,36,.55); }
-      .map-card b {
-        display: block; font-size: 11.5px; font-weight: 500; letter-spacing: .14em; color: #cfe6ff;
+
+      .opt {
+        display: flex; flex-direction: column; gap: 5px; width: 100%;
+        font: inherit; text-align: left; cursor: pointer;
+        padding: 9px 11px; background: rgba(6,14,24,.5); color: #9fb8d0;
+        border: 1px solid rgba(120,190,255,.18); border-radius: 2px;
+        transition: border-color .14s, background .14s;
       }
-      .map-card.on b { color: #9ff0a8; }
-      .map-card i {
-        display: block; font-style: normal; font-size: 9px; letter-spacing: .22em;
-        color: #5d84a8; margin-top: 3px;
+      .opt:hover { border-color: rgba(120,190,255,.42); background: rgba(8,20,30,.72); }
+      .opt.on { border-color: rgba(127,227,176,.72); background: rgba(18,40,36,.6); }
+
+      .opt-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+      .opt-top b {
+        font-size: 12.5px; font-weight: 500; letter-spacing: .12em; color: #cfe6ff;
       }
-      .map-card u {
-        display: block; text-decoration: none; font-size: 9.5px; line-height: 1.5;
-        color: #47688a; margin-top: 6px;
+      .opt.on .opt-top b { color: #9ff0a8; }
+      .opt-top i {
+        font-style: normal; font-size: 9px; letter-spacing: .12em; color: #5d84a8;
+        white-space: nowrap;
+      }
+      .opt-sub { font-size: 10px; line-height: 1.45; color: #4e739a; }
+
+      .bars { display: flex; gap: 8px; }
+      .bar { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .bar i {
+        font-style: normal; font-size: 8px; letter-spacing: .14em; color: #47688a;
+      }
+      .bar u { display: block; height: 3px; background: rgba(120,190,255,.16); border-radius: 1px; }
+      .bar u b { display: block; height: 100%; background: #6f9dc8; border-radius: 1px; }
+      .opt.on .bar u b { background: #7fe3b0; }
+
+      /* ---- launch row: callsign and the button share a line ---- */
+      .launch-row {
+        display: flex; align-items: center; justify-content: center;
+        gap: 14px; flex-wrap: wrap; margin-top: 22px;
+      }
+      .field-inline { display: flex; align-items: center; gap: 10px; }
+      .field-inline span {
+        font-size: 9.5px; letter-spacing: .28em; color: #5d84a8; white-space: nowrap;
       }
 
       /* the input and the button share a width, so they sit on one centre line */
@@ -232,6 +247,17 @@
       .callsign:focus { border-color: rgba(127,227,176,.75); background: rgba(8,20,30,.92); }
 
       .launch .act.big { width: 262px; padding: 13px 0; font-size: 13px; }
+      .launch-row .act.big { padding: 12px 34px; font-size: 13px; }
+      .launch-row .callsign { width: 190px; padding: 10px 12px; font-size: 14px; }
+
+      /* one condensed control line, ruled off from the choices above it */
+      .hint {
+        margin-top: 18px; padding-top: 14px;
+        border-top: 1px solid rgba(120,190,255,.12);
+        font-size: 10.5px; letter-spacing: .06em; color: #6f9dc8; line-height: 1.9;
+        text-wrap: balance;
+      }
+      .hint b { font-weight: 500; color: #cfe6ff; }
 
       .keys {
         display: flex; flex-wrap: wrap; justify-content: center;
@@ -270,6 +296,34 @@
       .note b { color: #8ff0b4; font-weight: 500; }
       .note i { color: #9fb8d0; }
       @keyframes blink { 50% { opacity: .32; } }
+
+      /* ---- title-screen responsive tiers ----
+         Kept last in the sheet: these override base rules at equal specificity,
+         so declaration order is what makes them apply. */
+      @media (max-width: 780px) {
+        .title-panel { padding: 24px 18px 18px; }
+        .choices { gap: 8px; margin-top: 16px; }
+        .opt { padding: 7px 9px; gap: 4px; }
+        .opt-sub { font-size: 9px; }
+        .launch-row { margin-top: 16px; }
+      }
+      /* Last resort: one column is what brings the scrollbar back, so shed the
+         stat bars (the tallest part) — the load line still ranks the jets. */
+      @media (max-width: 620px) {
+        .choices { grid-template-columns: 1fr 1fr; margin-top: 12px; }
+        .bars { display: none; }
+        .hint { margin-top: 12px; padding-top: 10px; line-height: 1.7; font-size: 10px; }
+        .game-title { font-size: clamp(22px, 6.4vw, 32px); }
+        .rule { margin-top: 12px; }
+        .launch-row { margin-top: 12px; gap: 10px; }
+        .launch-row .act.big { padding: 10px 24px; }
+        .launch-row .callsign { width: 150px; padding: 8px 10px; }
+      }
+      @media (max-width: 430px) { .choices { grid-template-columns: 1fr; } }
+      /* Short windows: let the panel scroll inside itself rather than the page. */
+      @media (max-height: 560px) {
+        .title-panel { max-height: 94vh; overflow-y: auto; }
+      }
     </style>
   </head>
   <body>

@@ -248,74 +248,89 @@ export class Overlay {
     </div>`;
   }
 
+  /** 0..1 for a stat bar, so the trade between airframes is visible not just named */
+  private static norm(v: number, lo: number, hi: number): number {
+    return Math.max(0.06, Math.min(1, (v - lo) / (hi - lo)));
+  }
+
+  private bars(spec: (typeof AIRFRAMES)[AirframeId]): string {
+    const rows: ReadonlyArray<[string, number]> = [
+      ['TURN', Overlay.norm(spec.pitchRate, 1.12, 1.5)],
+      ['SPEED', Overlay.norm(spec.speedMax, 298, 362)],
+      ['HULL', Overlay.norm(spec.hp, 80, 120)],
+    ];
+    return `<span class="bars">${rows.map(([label, v]) => `
+      <span class="bar"><i>${label}</i><u><b style="width:${(v * 100).toFixed(0)}%"></b></u></span>`).join('')}</span>`;
+  }
+
+  private choices(): string {
+    const d = this.settings.data;
+
+    const airframes = AIRFRAME_ORDER.map((id) => {
+      const a = AIRFRAMES[id];
+      return `<button class="opt${d.airframe === id ? ' on' : ''}" data-act="frame:${id}">
+        <span class="opt-top"><b>${a.name}</b><i>${a.ammo.IR}&times;IR · ${a.ammo.RADAR}&times;RDR</i></span>
+        ${this.bars(a)}
+      </button>`;
+    }).join('');
+
+    const skills = DIFFICULTY_ORDER.map((id) => {
+      const x = DIFFICULTIES[id];
+      return `<button class="opt${d.difficulty === id ? ' on' : ''}" data-act="diff:${id}">
+        <span class="opt-top"><b>${x.label}</b></span>
+        <span class="opt-sub">${x.blurb}</span>
+      </button>`;
+    }).join('');
+
+    const maps = MAP_ORDER.map((id) => {
+      const m = MAPS[id];
+      const [name, when] = m.name.split(' — ');
+      return `<button class="opt${d.mapId === id ? ' on' : ''}" data-act="map:${id}">
+        <span class="opt-top"><b>${name}</b><i>${when ?? ''}</i></span>
+        <span class="opt-sub">${m.blurb}</span>
+      </button>`;
+    }).join('');
+
+    return `<div class="choices">
+      <div class="choice">
+        <span class="choice-head">Your aircraft</span>
+        ${airframes}
+      </div>
+      <div class="choice">
+        <span class="choice-head">Bandit skill</span>
+        ${skills}
+      </div>
+      <div class="choice">
+        <span class="choice-head">Map</span>
+        ${maps}
+      </div>
+    </div>`;
+  }
+
   private renderTitle() {
     const paused = this.mode === 'paused';
     const [first, ...rest] = GAME_NAME.split(' ');
     const k = (a: Parameters<Settings['key']>[0]) => keyLabel(this.settings.key(a));
 
-    const keys: ReadonlyArray<[string, string]> = [
-      ['Mouse', 'fly'],
-      ['Click', 'guns'],
-      ['R-click', 'missile'],
-      [k('swapWeapon'), 'swap'],
-      [k('afterburner'), 'burner'],
-      [k('brake'), 'brake'],
-      [k('flares'), 'flares'],
-      [k('chaff'), 'chaff'],
-      [k('freeLook'), 'look'],
-      ['Scroll', 'radar'],
-    ];
-
-    this.el.innerHTML = `<div class="panel title-panel">
+    this.el.innerHTML = `<div class="panel title-panel${paused ? ' narrow' : ''}">
       ${this.gearButton()}
 
       <div class="title-block">
         ${paused
           ? `<div class="eyebrow">${GAME_NAME}</div><h1>PAUSED</h1>`
           : `<h1 class="game-title">${first} <span>${rest.join(' ')}</span></h1>`}
-        <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME}</div>
-        <div class="sub dim">${MAPS[this.settings.data.mapId].name}</div>
+        <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME} &nbsp;·&nbsp; FIRST TO ${CFG.match.scoreLimit}</div>
       </div>
 
-      <div class="rule"></div>
+      ${paused ? '' : this.choices()}
 
-      ${paused ? '' : `
-        <div class="seg">
-          <span class="seg-label">Airframe</span>
-          <div class="seg-opts">
-            ${AIRFRAME_ORDER.map((id) => `
-              <button class="seg-opt${this.settings.data.airframe === id ? ' on' : ''}"
-                      data-act="frame:${id}">${AIRFRAMES[id].name}</button>`).join('')}
-          </div>
-          <span class="seg-note">${AIRFRAMES[this.settings.data.airframe].role}</span>
-        </div>
-        <div class="seg">
-          <span class="seg-label">Bandit skill</span>
-          <div class="seg-opts">
-            ${DIFFICULTY_ORDER.map((id) => `
-              <button class="seg-opt${this.settings.data.difficulty === id ? ' on' : ''}"
-                      data-act="diff:${id}">${DIFFICULTIES[id].label}</button>`).join('')}
-          </div>
-          <span class="seg-note">${DIFFICULTIES[this.settings.data.difficulty].blurb}</span>
-        </div>
-        <div class="maps">
-          ${MAP_ORDER.map((id) => {
-            const m = MAPS[id];
-            const on = this.settings.data.mapId === id;
-            return `<div class="map-card${on ? ' on' : ''}" data-act="map:${id}">
-              <b>${m.name.split(' — ')[0]}</b>
-              <i>${m.name.split(' — ')[1] ?? ''}</i>
-              <u>${m.blurb}</u>
-            </div>`;
-          }).join('')}
-        </div>`}
       ${paused
         ? `<div class="launch">
              <button class="act primary big" data-act="resume">RESUME</button>
              <button class="act big" data-act="leave">LEAVE MATCH</button>
            </div>`
-        : `<div class="launch">
-             <label class="field">
+        : `<div class="launch-row">
+             <label class="field-inline">
                <span>CALLSIGN</span>
                <input class="callsign" type="text" maxlength="${MAX_NAME}" spellcheck="false"
                       autocomplete="off" value="${this.settings.data.pilotName}">
@@ -323,11 +338,11 @@ export class Overlay {
              <button class="act primary big" data-act="resume">ENTER BATTLE</button>
            </div>`}
 
-      <div class="keys">
-        ${keys.map(([key, label]) => `<span><b>${key}</b>${label}</span>`).join('')}
+      <div class="hint">
+        <b>Mouse</b> flies &nbsp;·&nbsp; <b>Click</b> to fire &nbsp;·&nbsp;
+        <b>${k('afterburner')}</b> burner &nbsp;·&nbsp; <b>${k('flares')}</b>/<b>${k('chaff')}</b> countermeasures
+        &nbsp;·&nbsp; <b>Tab</b> scores &nbsp;·&nbsp; full controls behind the gear
       </div>
-      <div class="fineprint">First team to ${CFG.match.scoreLimit} kills
-        &nbsp;·&nbsp; full controls behind the gear</div>
     </div>`;
   }
 

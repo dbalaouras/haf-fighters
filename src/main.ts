@@ -79,4 +79,4 @@ input.onPointerLockChange((locked) => {
 game.start();
 
 // expose for quick console tinkering while iterating on feel
-Object.assign(window as unknown as Record<string, unknown>, { game, CFG });
+Object.assign(window as unknown as Record<string, unknown>, { game, CFG, overlay });
