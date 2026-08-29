@@ -344,6 +344,8 @@ export class Game {
       a.missileCooldown = spec.reload;
       this.missiles.fire(a, a.lockTarget);
       this.audio.missileLaunch(a.pos);
+      // a heat-seeker launch breaks the lock: fire again as soon as you re-acquire
+      if (spec.dropsLockOnFire) a.breakLock();
       if (a.isPlayer) {
         // FOX 2 is the infrared call, FOX 3 the active-radar one
         const call = spec.id === 'RADAR' ? 'FOX 3' : 'FOX 2';

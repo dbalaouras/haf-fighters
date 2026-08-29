@@ -189,6 +189,12 @@ export interface WeaponSpec {
   lockTime: number;
   /** whether flares can spoof it — flares are an infrared countermeasure */
   flareVulnerable: boolean;
+  /**
+   * Whether launching breaks the lock. When it does, the rate of fire is set by how
+   * fast you can re-acquire rather than by a long reload, which rewards keeping the
+   * target on the nose instead of waiting out a timer.
+   */
+  dropsLockOnFire: boolean;
 }
 
 /**
@@ -200,11 +206,12 @@ export interface WeaponSpec {
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   IR: {
     id: 'IR', label: 'AIM-9 HEAT', tag: 'IR',
-    count: 6, reload: 6,
+    // short reload: re-acquiring the lock is what actually paces these
+    count: 6, reload: 0.7,
     damage: 55, speed: 300, maxSpeed: 780, accel: 320, turnRate: 2.5,
     life: 12, proximity: 16, blastRadius: 45,
     lockAngle: 22 * Math.PI / 180, lockRange: 4500, lockTime: 1.5,
-    flareVulnerable: true,
+    flareVulnerable: true, dropsLockOnFire: true,
   },
   RADAR: {
     id: 'RADAR', label: 'AIM-120 RADAR', tag: 'RDR',
@@ -212,7 +219,8 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     damage: 62, speed: 340, maxSpeed: 1020, accel: 430, turnRate: 1.35,
     life: 17, proximity: 20, blastRadius: 55,
     lockAngle: 38 * Math.PI / 180, lockRange: 9000, lockTime: 2.6,
-    flareVulnerable: false,
+    // the radar round goes active on its own, so the launcher keeps its lock
+    flareVulnerable: false, dropsLockOnFire: false,
   },
 };
 

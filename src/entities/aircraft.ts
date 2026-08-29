@@ -137,6 +137,12 @@ export class Aircraft {
     return this.weapon;
   }
 
+  /** Drop the current lock — used after a launch that breaks it. */
+  breakLock() {
+    this.lockProgress = 0;
+    this.locked = false;
+  }
+
   setWeapon(w: WeaponId) {
     if (this.weapon === w) return;
     this.weapon = w;

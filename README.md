@@ -140,11 +140,17 @@ better:
 | Rounds | 6 | 4 |
 | Lock cone / range | 22° / 4.5 km | 38° / 9 km |
 | Lock time | 1.5 s | 2.6 s |
+| Launch breaks lock | **yes** | no |
+| Time between shots | ~1.5 s (re-lock) | 8.5 s (reload) |
 | Seeker turn rate | 2.5 rad/s | 1.35 rad/s |
 | Flares | **spoof it** (~30%) | **no effect** |
 
 The heat-seeker is quick to lock and agile enough to follow a hard turn, but flares
-beat it. The radar missile reaches twice as far, locks over a much wider cone and
+beat it. Firing one **breaks the lock**, so its rate of fire is set by how fast you
+can re-acquire rather than by a reload timer — hold the target on your nose and you
+can put all six away in about nine seconds; let it slide out of the seeker cone and
+you get nothing. The radar round goes active on its own, so launching it keeps your
+lock, but it is paced by a long reload instead. The radar missile reaches twice as far, locks over a much wider cone and
 ignores flares entirely — flares are an infrared countermeasure — but its seeker is
 sluggish, so a hard break turn inside its turn radius will defeat it. Swapping
 restarts the lock, since the two seekers have different cones and dwell times.
