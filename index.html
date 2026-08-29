@@ -176,6 +176,24 @@
         background: linear-gradient(90deg, transparent, rgba(120,190,255,.4), transparent);
       }
 
+      /* ---- difficulty segmented control ---- */
+      .seg {
+        display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 26px;
+      }
+      .seg-label {
+        font-size: 9.5px; letter-spacing: .3em; color: #5d84a8; text-transform: uppercase;
+      }
+      .seg-opts { display: flex; gap: 0; border: 1px solid rgba(120,190,255,.22); border-radius: 2px; }
+      .seg-opt {
+        font: inherit; font-size: 10.5px; letter-spacing: .2em; cursor: pointer;
+        padding: 8px 18px; background: transparent; color: #7fa6c8; border: 0;
+        border-right: 1px solid rgba(120,190,255,.16); transition: background .15s, color .15s;
+      }
+      .seg-opt:last-child { border-right: 0; }
+      .seg-opt:hover { background: rgba(127,227,176,.08); color: #cfe6ff; }
+      .seg-opt.on { background: rgba(127,227,176,.16); color: #9ff0a8; }
+      .seg-note { font-size: 10px; color: #47688a; text-align: center; max-width: 320px; }
+
       /* ---- map picker ---- */
       .maps { display: flex; gap: 10px; justify-content: center; margin-top: 24px; }
       .map-card {

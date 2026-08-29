@@ -115,9 +115,17 @@ export const CFG = {
   },
 
   ai: {
-    reactionSpread: 0.35,   // per-pilot random skill spread
     gunRange: 1100,
-    gunCone: 9 * Math.PI / 180,
+    /** outer sanity bound; the real gate is the miss distance below */
+    gunCone: 15 * Math.PI / 180,
+    /**
+     * How far off the solution may be *at the target*, in metres, for the AI to
+     * pull the trigger. Gating on an angle cannot work for gunnery: 9 degrees is
+     * a 125 m miss at 800 m against a 9 m target, so a cone loose enough to fire
+     * through is far too loose to hit through. Distance makes the gate tighten
+     * automatically with range.
+     */
+    gunMissTolerance: 45,
     missileCone: 14 * Math.PI / 180,
     radarMissileCone: 26 * Math.PI / 180,
     radarMinRange: 1800,   // beyond this the AI reaches for the radar missile
@@ -162,6 +170,57 @@ export const TEAM = {
   BLUE: { id: 'BLUE' as TeamId, color: 0x4aa8ff, css: '#5ab6ff', spawn: { x: -2700, z: 2200, heading: -0.68 } },
   RED: { id: 'RED' as TeamId, color: 0xff5c4a, css: '#ff7a66', spawn: { x: 2700, z: -2200, heading: Math.PI - 0.68 } },
 } as const;
+
+export type DifficultyId = 'ROOKIE' | 'REGULAR' | 'ACE';
+
+export interface DifficultySpec {
+  id: DifficultyId;
+  label: string;
+  blurb: string;
+  /** pilot skill spread — trigger discipline and reaction timing */
+  skillBase: number;
+  skillStep: number;
+  skillJitter: number;
+  skillMin: number;
+  skillMax: number;
+  /**
+   * How strongly bandits prefer the player as a target, in target-score metres.
+   *
+   * Difficulty is built from levers that make bandits dangerous *to the player*
+   * rather than from pilot "skill". Skill turned out to trade offence for defence —
+   * evading, flaring and breaking off all take a pilot out of the attack — and with
+   * a five second respawn the scoring rewards aggression, so more skilful bandits
+   * measurably scored *worse*. These three levers are purely offensive and measured
+   * monotonic against the player.
+   */
+  playerBias: number;
+  /** multiplier on missile lock time — lower locks quicker */
+  lockScale: number;
+  /** multiplier on missile reload */
+  reloadScale: number;
+  /** multiplier on how long they take to reach for the flare button */
+  flareReaction: number;
+}
+
+export const DIFFICULTIES: Record<DifficultyId, DifficultySpec> = {
+  ROOKIE: {
+    id: 'ROOKIE', label: 'ROOKIE', blurb: 'Slow to lock, and rarely singles you out',
+    skillBase: 0.12, skillStep: 0.07, skillJitter: 0.08, skillMin: 0.05, skillMax: 0.45,
+    playerBias: 0, lockScale: 1.6, reloadScale: 1.6, flareReaction: 2.1,
+  },
+  REGULAR: {
+    id: 'REGULAR', label: 'REGULAR', blurb: 'A fair fight — what everything was balanced against',
+    skillBase: 0.34, skillStep: 0.09, skillJitter: 0.10, skillMin: 0.20, skillMax: 0.85,
+    playerBias: 350, lockScale: 1, reloadScale: 1, flareReaction: 1,
+  },
+  ACE: {
+    id: 'ACE', label: 'ACE', blurb: 'Locks fast, reloads fast, and comes looking for you',
+    skillBase: 0.60, skillStep: 0.09, skillJitter: 0.08, skillMin: 0.50, skillMax: 1,
+    playerBias: 1100, lockScale: 0.62, reloadScale: 0.6, flareReaction: 0.55,
+  },
+};
+
+export const DIFFICULTY_ORDER: readonly DifficultyId[] = ['ROOKIE', 'REGULAR', 'ACE'];
 
 export type WeaponId = 'IR' | 'RADAR';
 

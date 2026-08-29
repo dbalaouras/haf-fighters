@@ -1,6 +1,7 @@
 import { clamp01 } from './mathx';
 import { ActionId, Bindings, defaultBindings } from './bindings';
 import { MapId, MAPS } from '../world/maps';
+import { DifficultyId, DIFFICULTIES } from './config';
 
 export const MAX_NAME = 14;
 export const DEFAULT_NAME = 'VIPER';
@@ -20,6 +21,7 @@ export interface SettingsData {
   /** the player's callsign, shown on the HUD, scoreboard and kill feed */
   pilotName: string;
   mapId: MapId;
+  difficulty: DifficultyId;
   /** pulling back on the mouse raises the nose when false */
   invertPitch: boolean;
   invertRoll: boolean;
@@ -39,6 +41,7 @@ const LEGACY_KEYS = ['harfighters.settings.v1', 'skyclash.settings.v2'];
 const DEFAULTS: SettingsData = {
   pilotName: DEFAULT_NAME,
   mapId: 'CORAL',
+  difficulty: 'REGULAR',
   invertPitch: false,
   invertRoll: false,
   assist: true,
@@ -80,6 +83,7 @@ export class Settings {
       this.data.volume = clamp01(this.data.volume);
       this.data.pilotName = sanitizeName(this.data.pilotName);
       if (!MAPS[this.data.mapId]) this.data.mapId = DEFAULTS.mapId;
+      if (!DIFFICULTIES[this.data.difficulty]) this.data.difficulty = DEFAULTS.difficulty;
     } catch {
       // private browsing / blocked storage — defaults are fine
     }
@@ -112,6 +116,8 @@ export class Settings {
   }
 
   setMap(id: MapId) { this.set('mapId', id); }
+
+  setDifficulty(id: DifficultyId) { this.set('difficulty', id); }
 
   setPilotName(raw: string) {
     this.set('pilotName', sanitizeName(raw));

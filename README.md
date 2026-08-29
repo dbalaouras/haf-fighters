@@ -171,6 +171,29 @@ The scroll wheel steps the radar through 2 / 4 / 6 / 10 / 16 km. The display sit
 the top-right corner with the current range printed under it, and the kill feed runs
 below it.
 
+## Difficulty
+
+Three settings on the title screen, changing how dangerous bandits are **to you**
+rather than how skilful they are in the abstract:
+
+| | Rookie | Regular | Ace |
+| --- | --- | --- | --- |
+| Missile lock time | 1.6× | 1× | 0.62× |
+| Missile reload | 1.6× | 1× | 0.6× |
+| How hard they single you out | never | some | strongly |
+| Flare reaction | 2.1× slower | baseline | 1.8× faster |
+
+Measured over three matches each: missiles fired **at the player** per minute goes
+2.4 → 3.0 → 4.9, and a match finishes in 495 s → 310 s → 179 s.
+
+That framing is deliberate, and it came out of the measurements. Scaling pilot
+"skill" does not work in this game: every competence behaviour — evading, flaring,
+breaking off a bad attack — takes a pilot out of the fight, and with a five second
+respawn the scoring rewards aggression over survival. Bandits given *more* skill
+measurably scored *worse* (a low-skill team took 56.4% of kills against a high-skill
+team's 53.7%, and sluggish flare reaction beat snappy reaction 65% to 53.5%). So
+difficulty is built from purely offensive levers, which measure monotonic.
+
 ## Maps
 
 Two, picked on the title screen. The choice is saved, and switching rebuilds the

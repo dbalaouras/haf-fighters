@@ -1,3 +1,4 @@
+import { CFG } from './core/config';
 import { Game } from './core/game';
 import { Input } from './core/input';
 import { Settings } from './core/settings';
@@ -78,4 +79,4 @@ input.onPointerLockChange((locked) => {
 game.start();
 
 // expose for quick console tinkering while iterating on feel
-(window as unknown as { game: Game }).game = game;
+Object.assign(window as unknown as Record<string, unknown>, { game, CFG });

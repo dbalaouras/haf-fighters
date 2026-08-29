@@ -1,4 +1,4 @@
-import { CFG, GAME_NAME, MODE_NAME } from '../core/config';
+import { CFG, DifficultyId, DIFFICULTIES, DIFFICULTY_ORDER, GAME_NAME, MODE_NAME } from '../core/config';
 import { MatchResult } from '../core/game';
 import { Settings } from '../core/settings';
 import { ACTIONS, ActionId, keyLabel } from '../core/bindings';
@@ -27,7 +27,8 @@ const GEAR_ICON = `
 type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted'
   | 'sens-' | 'sens+' | 'vol-' | 'vol+' | 'reset' | `bind:${ActionId}`;
 
-type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back' | `map:${MapId}`;
+type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back'
+  | `map:${MapId}` | `diff:${DifficultyId}`;
 
 export class Overlay {
   private el: HTMLElement;
@@ -94,6 +95,10 @@ export class Overlay {
     if (a.startsWith('map:')) {
       // rebuilding the world is not instant, so show the choice before it happens
       this.settings.setMap(a.slice(4) as MapId);
+      return;
+    }
+    if (a.startsWith('diff:')) {
+      this.settings.setDifficulty(a.slice(5) as DifficultyId);
       return;
     }
     switch (a) {
@@ -267,6 +272,15 @@ export class Overlay {
       <div class="rule"></div>
 
       ${paused ? '' : `
+        <div class="seg">
+          <span class="seg-label">Bandit skill</span>
+          <div class="seg-opts">
+            ${DIFFICULTY_ORDER.map((id) => `
+              <button class="seg-opt${this.settings.data.difficulty === id ? ' on' : ''}"
+                      data-act="diff:${id}">${DIFFICULTIES[id].label}</button>`).join('')}
+          </div>
+          <span class="seg-note">${DIFFICULTIES[this.settings.data.difficulty].blurb}</span>
+        </div>
         <div class="maps">
           ${MAP_ORDER.map((id) => {
             const m = MAPS[id];

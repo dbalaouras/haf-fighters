@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, WEAPONS } from '../core/config';
+import { CFG, DifficultySpec, DIFFICULTIES, WEAPONS } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
 import { Terrain } from '../world/terrain';
 import { WaypointSystem } from '../world/waypoints';
@@ -11,6 +11,7 @@ const _l = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _to = new THREE.Vector3();
 const _lead = new THREE.Vector3();
+const _aim = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
 
@@ -18,6 +19,8 @@ export class Pilot {
   readonly jet: Aircraft;
   /** 0 = rookie, 1 = ace — scales trigger discipline, reaction and manoeuvring */
   skill: number;
+  private diff: DifficultySpec = DIFFICULTIES.REGULAR;
+
 
   target: Aircraft | null = null;
   state: State = 'PURSUE';
@@ -28,15 +31,29 @@ export class Pilot {
   private jitterPhase = rand(0, 100);
   private trigger = 0;
 
-  constructor(jet: Aircraft, skill: number) {
+  constructor(jet: Aircraft, diff: DifficultySpec, slot: number) {
     this.jet = jet;
-    this.skill = skill;
-    this.retargetTimer = rand(0, 1.5);
+    this.skill = 0;
+    this.configure(diff, slot);
   }
 
-  /** Fresh match, fresh pilots. */
-  reset(skill: number) {
-    this.skill = skill;
+  /**
+   * Set the pilot up for a difficulty. Slot spreads skill across the squadron so a
+   * team is a mix rather than five identical pilots.
+   */
+  configure(diff: DifficultySpec, slot: number) {
+    this.diff = diff;
+    this.skill = clamp(
+      diff.skillBase + slot * diff.skillStep + rand(-diff.skillJitter, diff.skillJitter),
+      diff.skillMin, diff.skillMax,
+    );
+    this.jet.lockScale = diff.lockScale;
+    this.jet.reloadScale = diff.reloadScale;
+    this.reset();
+  }
+
+  /** Fresh match, fresh pilot state. */
+  reset() {
     this.target = null;
     this.state = 'PURSUE';
     this.stateTimer = 0;
@@ -61,6 +78,7 @@ export class Pilot {
 
     this.retargetTimer -= dt;
     this.stateTimer -= dt;
+
     if (!this.target || !this.target.alive || this.retargetTimer <= 0) {
       this.pickTarget(all, roster);
       this.retargetTimer = rand(1.6, 3.4);
@@ -78,10 +96,13 @@ export class Pilot {
       this.stateTimer = 1.2;
     } else if (jet.threat > 0 && this.state !== 'EVADE' && Math.random() < 0.6 + this.skill * 0.4) {
       this.state = 'EVADE';
-      this.stateTimer = CFG.ai.evadeTime * (0.7 + this.skill * 0.6);
+      // A better pilot breaks the lock and gets back to the fight *sooner*, not
+      // later. Scaling this the other way made aces spend the match defending and
+      // score worse than rookies — the opposite of a difficulty setting.
+      this.stateTimer = CFG.ai.evadeTime * (1.35 - this.skill * 0.55);
       this.evadeSign = Math.random() < 0.5 ? -1 : 1;
       // better pilots reach for the flare button sooner
-      this.flareTimer = CFG.ai.flareReaction * (1.6 - this.skill);
+      this.flareTimer = CFG.ai.flareReaction * this.diff.flareReaction * (1.6 - this.skill);
     } else if (this.state === 'REARM') {
       // a ring restocks in one pass, so this ends the moment it works
       const done = jet.hp >= CFG.hull.hp && jet.ammo.IR >= WEAPONS.IR.count;
@@ -213,22 +234,33 @@ export class Pilot {
       case 'ATTACK': {
         if (!tgt) break;
         _to.copy(tgt.pos).sub(jet.pos);
-        // gun lead solution
+        // gun solution against a turning target, not a straight-flying one
         const closing = CFG.gun.speed + jet.speed * 0.35;
         const tHit = dist / closing;
-        _lead.copy(tgt.forward(_tmp)).multiplyScalar(tgt.speed * tHit);
-        _dir.copy(_to).add(_lead);
+        tgt.predictPosition(tHit, _lead);
+        _aim.copy(_lead).sub(jet.pos).normalize();  // where the rounds have to go
+        _dir.copy(_lead).sub(jet.pos);
         this.limitAltitude(_dir, jet, terrain);
         this.steer(_dir.normalize(), 1);
 
         c.throttle = dist > 1200 ? 1 : 0.72;
         c.burner = dist > 1600;   // close the gap on the burner, then settle to fight
 
-        const angleOff = jet.forward(_tmp).angleTo(_to.normalize());
+        const fwd = jet.forward(_tmp);
+        // The trigger is gated on the angle to the *lead point*, not to the target.
+        // Gating on the target means firing only when the nose is off the solution
+        // by the whole lead angle — about 12 degrees at typical range, well outside
+        // the gun cone — so the cannon effectively never fired while aimed correctly.
+        const gunAngle = fwd.angleTo(_aim);
+        const angleOff = fwd.angleTo(_to.normalize());
 
         // guns: short bursts, better discipline at higher skill
         this.trigger -= dt;
-        if (dist < CFG.ai.gunRange && angleOff < CFG.ai.gunCone && !jet.gunOverheated) {
+        // how far the burst would miss by at the target, in metres
+        const missBy = Math.tan(Math.min(gunAngle, 1.3)) * dist;
+        const tolerance = CFG.ai.gunMissTolerance * (1.6 - this.skill);
+        if (dist < CFG.ai.gunRange && gunAngle < CFG.ai.gunCone
+            && missBy < tolerance && !jet.gunOverheated) {
           if (this.trigger <= 0) this.trigger = rand(0.35, 0.9) * (1.4 - this.skill);
           c.gun = this.trigger > 0.12;
         }
@@ -328,7 +360,7 @@ export class Pilot {
 
       const angleOff = jet.forward(_tmp).angleTo(_to.copy(a.pos).sub(jet.pos).normalize());
       let score = d + taken * 2600 + angleOff * 900;
-      if (a.isPlayer) score -= 350;                 // bandits lean towards the human, but do not swarm
+      if (a.isPlayer) score -= this.diff.playerBias;   // how hard they come for you
       if (a.hp < 45) score -= 900;                  // finish wounded targets
       if (score < bestScore) { bestScore = score; best = a; }
     }

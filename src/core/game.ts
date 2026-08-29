@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, TEAM, TeamId, WEAPONS, other } from './config';
+import { CFG, DifficultyId, DIFFICULTIES, TEAM, TeamId, WEAPONS, other } from './config';
 import { clamp, clamp01, damp, lerp, rand } from './mathx';
 import { Input } from './input';
 import { Terrain } from '../world/terrain';
@@ -54,6 +54,7 @@ export class Game {
   private pilots: Pilot[] = [];
   private slot = new Map<Aircraft, number>();
 
+  private difficulty: DifficultyId;
   score: Record<TeamId, number> = { BLUE: 0, RED: 0 };
   timeLeft = CFG.match.timeLimit;
   time = 0;
@@ -96,6 +97,7 @@ export class Game {
     private settings: Settings,
   ) {
     this.audio = new Sound(settings);
+    this.difficulty = settings.data.difficulty;
     this.renderer = new THREE.WebGLRenderer({
       canvas: sceneCanvas, antialias: true, powerPreference: 'high-performance',
     });
@@ -110,7 +112,13 @@ export class Game {
 
     this.hud = new Hud(hudCanvas);
     this.spawnTeams();
-    settings.onChange((d) => { if (d.mapId !== this.mapId) this.applyMap(d.mapId); });
+    settings.onChange((d) => {
+      if (d.mapId !== this.mapId) this.applyMap(d.mapId);
+      if (d.difficulty !== this.difficulty) {
+        this.difficulty = d.difficulty;
+        this.configurePilots();
+      }
+    });
     this.player.name = settings.data.pilotName;
     settings.onChange((d) => { this.player.name = d.pilotName; });
 
@@ -187,7 +195,7 @@ export class Game {
           this.player = a;
           a.object.visible = true;
         } else {
-          this.pilots.push(new Pilot(a, clamp(0.34 + i * 0.09 + rand(-0.1, 0.1), 0.2, 0.85)));
+          this.pilots.push(new Pilot(a, DIFFICULTIES[this.settings.data.difficulty], i));
         }
       }
     }
@@ -203,9 +211,7 @@ export class Game {
     this.timeLeft = CFG.match.timeLimit;
     this.over = false;
     this.feed = [];
-    for (let i = 0; i < this.pilots.length; i++) {
-      this.pilots[i].reset(clamp(0.34 + (i % CFG.match.teamSize) * 0.09 + rand(-0.1, 0.1), 0.2, 0.85));
-    }
+    this.configurePilots();
     this.flares.reset();
     this.waypoints.reset();
     this.audio.reset();
@@ -244,6 +250,14 @@ export class Game {
   }
 
   stop() { cancelAnimationFrame(this.raf); }
+
+  /** Re-roll every AI pilot for the currently selected difficulty. */
+  private configurePilots() {
+    const diff = DIFFICULTIES[this.settings.data.difficulty];
+    for (let i = 0; i < this.pilots.length; i++) {
+      this.pilots[i].configure(diff, i % CFG.match.teamSize);
+    }
+  }
 
   /** Abandon the current match and sit paused on the menu. */
   leaveMatch() {
@@ -357,7 +371,7 @@ export class Game {
       a.locked = false;
       return;
     }
-    a.lockProgress = clamp01(a.lockProgress + dt / M.lockTime);
+    a.lockProgress = clamp01(a.lockProgress + dt / (M.lockTime * a.lockScale));
     const wasLocked = a.locked;
     a.locked = a.lockProgress >= 1;
     if (a.locked && !wasLocked && a.isPlayer) {
@@ -398,7 +412,7 @@ export class Game {
     if (c.missile && a.missiles > 0 && a.missileCooldown <= 0 && a.locked && a.lockTarget) {
       const spec = a.weaponSpec;
       a.ammo[a.weapon]--;
-      a.missileCooldown = spec.reload;
+      a.missileCooldown = spec.reload * a.reloadScale;
       this.missiles.fire(a, a.lockTarget);
       this.audio.missileLaunch(a.pos);
       // a heat-seeker launch breaks the lock: fire again as soon as you re-acquire

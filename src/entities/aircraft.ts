@@ -24,6 +24,7 @@ const AX = new THREE.Vector3(1, 0, 0);
 const AY = new THREE.Vector3(0, 1, 0);
 const AZ = new THREE.Vector3(0, 0, 1);
 const _q = new THREE.Quaternion();
+const _omega = new THREE.Vector3();
 
 export class Aircraft {
   readonly team: TeamId;
@@ -75,6 +76,10 @@ export class Aircraft {
   lockProgress = 0;
   locked = false;
 
+  /** difficulty scalars, set by the AI pilot; the player always flies at 1 */
+  lockScale = 1;
+  reloadScale = 1;
+
   /** raised by the missile system while a live missile is tracking this aircraft */
   threat = 0;
   threatRange = Infinity;
@@ -109,6 +114,24 @@ export class Aircraft {
   up(out = this._up): THREE.Vector3 { return out.set(0, 1, 0).applyQuaternion(this.quat); }
 
   velocity(out: THREE.Vector3): THREE.Vector3 { return this.forward(out).multiplyScalar(this.speed); }
+
+  /**
+   * Where this aircraft will be in `t` seconds, assuming it holds its current turn.
+   *
+   * A straight-line extrapolation is not good enough for gunnery: a jet turning at
+   * 1 rad/s departs its straight-line prediction by roughly 45 m over a half-second
+   * of bullet flight, and the hit radius is 9 m. Rotating the velocity through half
+   * the arc approximates the chord of the turn and lands far closer.
+   */
+  predictPosition(t: number, out: THREE.Vector3): THREE.Vector3 {
+    // body rates -> world angular velocity, matching how update() applies them:
+    // +X pitches up, -Z rolls right, -Y yaws right
+    _omega.set(this.rates.q, -this.rates.r, -this.rates.p).applyQuaternion(this.quat);
+    out.copy(this.forward()).multiplyScalar(this.speed);
+    const arc = _omega.length() * t * 0.5;
+    if (arc > 1e-4) out.applyAxisAngle(_omega.normalize(), arc);
+    return out.multiplyScalar(t).add(this.pos);
+  }
 
   /**
    * Signed bank angle over the full -pi..pi range (+ = right wing down).
