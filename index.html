@@ -158,9 +158,16 @@
       .title-panel .sub.dim { color: #4e739a; font-size: 10px; }
       .eyebrow { font-size: 11px; letter-spacing: .38em; color: #5d84a8; }
       .game-title {
-        font-size: clamp(26px, 6vw, 46px); font-weight: 600; line-height: 1.06;
-        letter-spacing: .16em; color: #7fe3b0; white-space: nowrap;
+        /* monospace at .16em tracking runs about 8.9em wide for this title, so the
+           ceiling is set to fit the panel's content box rather than by eye. It is
+           allowed to wrap: nowrap clipped the title clean off on a narrow window. */
+        font-size: clamp(24px, 5.6vw, 46px); font-weight: 600; line-height: 1.1;
+        letter-spacing: .16em; color: #7fe3b0;
+        text-wrap: balance;
         text-shadow: 0 0 26px rgba(127, 227, 176, .22);
+      }
+      @media (max-width: 420px) {
+        .game-title { letter-spacing: .08em; }
       }
       .game-title span { color: #eaf5ff; }
 
