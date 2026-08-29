@@ -5,7 +5,7 @@ import { ActionId } from './bindings';
 
 export interface Sample {
   pitch: number; roll: number; yaw: number; throttle: number;
-  burner: boolean; gun: boolean; missile: boolean; flares: boolean;
+  burner: boolean; gun: boolean; missile: boolean; flares: boolean; chaff: boolean;
   /** look-around offsets in radians, non-zero only while free look is held */
   freeLook: boolean; lookYaw: number; lookPitch: number;
 }
@@ -200,6 +200,7 @@ export class Input {
     let gun = this.mouseDown.has(0) || this.bound('fireGun');
     let missile = this.mouseDown.has(2) || this.bound('fireMissile');
     let flares = this.bound('flares');
+    let chaff = this.bound('chaff');
 
     let burner = this.bound('afterburner');
     let brake = this.bound('brake');
@@ -216,6 +217,7 @@ export class Input {
       gun = gun || !!p.buttons[0]?.pressed || !!p.buttons[5]?.pressed;
       missile = missile || !!p.buttons[1]?.pressed || !!p.buttons[4]?.pressed;
       flares = flares || !!p.buttons[2]?.pressed;
+      chaff = chaff || !!p.buttons[3]?.pressed;
       break;
     }
 
@@ -233,7 +235,7 @@ export class Input {
       roll: clamp(roll, -1, 1),
       yaw: clamp(yaw, -1, 1),
       throttle: this.throttle,
-      burner, gun, missile, flares,
+      burner, gun, missile, flares, chaff,
       freeLook, lookYaw: this.look.yaw, lookPitch: this.look.pitch,
     };
   }

@@ -193,6 +193,21 @@ export class Fx {
     });
   }
 
+  chaffCloud(pos: THREE.Vector3, vel: THREE.Vector3, remaining: number) {
+    // cold metallic glitter, deliberately nothing like a flare's burn
+    this.v.copy(vel).multiplyScalar(-0.03)
+      .add(this.v.set(rand(-8, 8), rand(-6, 4), rand(-8, 8)));
+    this.fire.spawn({
+      pos, vel: this.v, life: 0.7,
+      size0: 2 + remaining * 3, size1: 0.6,
+      col0: 0xdfe9ff, col1: 0x7f93b8, drag: 2.4, alpha: 0.8,
+    });
+    this.smoke.spawn({
+      pos, vel: this.v, life: 1.4,
+      size0: 10, size1: 46, col0: 0xa8b6cc, col1: 0x6f7d94, alpha: 0.16, drag: 2.2,
+    });
+  }
+
   hitSpark(pos: THREE.Vector3) {
     for (let i = 0; i < 5; i++) {
       this.v.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(10, 45));

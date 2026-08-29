@@ -101,6 +101,11 @@ export const CFG = {
     assistWindow: 8,      // seconds a hit still counts towards an assist
   },
 
+  /**
+   * Countermeasures. Flares are an infrared decoy and chaff a radar one, so each
+   * defeats exactly one seeker type — carrying both is what makes the two missiles
+   * a genuine pair rather than one strictly better weapon.
+   */
   flare: {
     count: 32,            // carried per sortie
     salvo: 4,             // dispensed per press
@@ -111,6 +116,18 @@ export const CFG = {
     decoyChance: 0.5,
     decoyRange: 1400,     // the missile has to be close enough to bite
     decoyCone: 55 * Math.PI / 180,
+  },
+
+  chaff: {
+    count: 24,
+    salvo: 2,             // a bloom, rather than a string of burning points
+    cooldown: 0.9,
+    life: 7,
+    fallSpeed: 4,         // it hangs in the air instead of falling away
+    /** radar reaches further, so chaff works at longer range and over a wider cone */
+    decoyChance: 0.5,
+    decoyRange: 2600,
+    decoyCone: 70 * Math.PI / 180,
   },
 
   /**
@@ -266,6 +283,8 @@ export interface WeaponSpec {
   lockTime: number;
   /** whether flares can spoof it — flares are an infrared countermeasure */
   flareVulnerable: boolean;
+  /** whether chaff can spoof it — chaff is a radar countermeasure */
+  radarVulnerable: boolean;
   /**
    * Whether launching breaks the lock. When it does, the rate of fire is set by how
    * fast you can re-acquire rather than by a long reload, which rewards keeping the
@@ -288,7 +307,7 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     damage: 55, speed: 300, maxSpeed: 780, accel: 320, turnRate: 2.5,
     life: 12, proximity: 16, blastRadius: 45,
     lockAngle: 22 * Math.PI / 180, lockRange: 4500, lockTime: 1.5,
-    flareVulnerable: true, dropsLockOnFire: true,
+    flareVulnerable: true, radarVulnerable: false, dropsLockOnFire: true,
   },
   RADAR: {
     id: 'RADAR', label: 'AIM-120 RADAR', tag: 'RDR',
@@ -297,7 +316,7 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     life: 17, proximity: 20, blastRadius: 55,
     lockAngle: 38 * Math.PI / 180, lockRange: 9000, lockTime: 2.6,
     // the radar round goes active on its own, so the launcher keeps its lock
-    flareVulnerable: false, dropsLockOnFire: false,
+    flareVulnerable: false, radarVulnerable: true, dropsLockOnFire: false,
   },
 };
 

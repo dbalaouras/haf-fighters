@@ -13,7 +13,7 @@ import { Pilot } from '../ai/pilot';
 import { Fx } from '../combat/particles';
 import { BulletSystem } from '../combat/bullets';
 import { MissileSystem } from '../combat/missiles';
-import { FlareSystem } from '../combat/flares';
+import { CountermeasureSystem } from '../combat/countermeasures';
 import { Hud, FeedLine } from '../ui/hud';
 import { Sound } from '../audio/sound';
 import { Settings } from './settings';
@@ -45,7 +45,7 @@ export class Game {
   private fx = new Fx();
   private bullets = new BulletSystem();
   private missiles = new MissileSystem();
-  private flares = new FlareSystem();
+  private cm = new CountermeasureSystem();
   private hud: Hud;
   readonly audio: Sound;
 
@@ -214,7 +214,7 @@ export class Game {
     this.over = false;
     this.feed = [];
     this.configurePilots();
-    this.flares.reset();
+    this.cm.reset();
     this.waypoints.reset();
     this.audio.reset();
     for (const a of this.aircraft) {
@@ -290,9 +290,9 @@ export class Game {
     if (this.player.alive) {
       pc.pitch = s.pitch; pc.roll = s.roll; pc.yaw = s.yaw;
       pc.throttle = s.throttle; pc.burner = s.burner;
-      pc.gun = s.gun; pc.missile = s.missile; pc.flares = s.flares;
+      pc.gun = s.gun; pc.missile = s.missile; pc.flares = s.flares; pc.chaff = s.chaff;
     } else {
-      pc.gun = pc.missile = pc.flares = pc.burner = false;
+      pc.gun = pc.missile = pc.flares = pc.chaff = pc.burner = false;
     }
 
     // --- AI ---
@@ -301,6 +301,7 @@ export class Game {
     // --- flight + per-aircraft systems ---
     for (const a of this.aircraft) {
       a.threatRange = Infinity;
+      if (a.threat <= 0) a.threatKind = null;
       a.update(dt);
       if (!a.alive) {
         if (a.respawnTimer <= 0) a.respawn(this.slot.get(a) ?? 0);
@@ -331,7 +332,7 @@ export class Game {
         this.pushFeed('REARMED', a.team, 2);
       }
     });
-    this.flares.update(dt, this.fx);
+    this.cm.update(dt, this.fx);
     this.fx.update(dt);
 
     // --- match state ---
@@ -403,13 +404,21 @@ export class Game {
       a.gunCooldown = 0;
     }
 
-    // flares: one salvo per press, every live missile chasing this jet gets a roll
+    // countermeasures: one salvo per press, and every live missile chasing this jet
+    // that the type can actually fool gets a single roll
     if (c.flares && a.flares >= CFG.flare.salvo && a.flareCooldown <= 0) {
       a.flares -= CFG.flare.salvo;
       a.flareCooldown = CFG.flare.cooldown;
-      this.missiles.onFlareSalvo(this.flares.deploy(a), a);
+      this.missiles.onDecoySalvo(this.cm.deploy(a, 'FLARE'), a);
       this.audio.flares(a.pos);
       if (a.isPlayer) this.pushFeed('FLARES', a.team, 1.4);
+    }
+    if (c.chaff && a.chaff >= CFG.chaff.salvo && a.chaffCooldown <= 0) {
+      a.chaff -= CFG.chaff.salvo;
+      a.chaffCooldown = CFG.chaff.cooldown;
+      this.missiles.onDecoySalvo(this.cm.deploy(a, 'CHAFF'), a);
+      this.audio.flares(a.pos);
+      if (a.isPlayer) this.pushFeed('CHAFF', a.team, 1.4);
     }
 
     // missiles need a completed lock

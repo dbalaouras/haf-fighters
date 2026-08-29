@@ -611,16 +611,26 @@ export class Hud {
     }
 
     // flares, counted in salvos since that is how they are dispensed
-    const salvos = Math.floor(p.flares / CFG.flare.salvo);
-    const maxSalvos = Math.floor(CFG.flare.count / CFG.flare.salvo);
-    const ready = p.flareCooldown <= 0 && salvos > 0;
-    c.fillStyle = ready ? DIM : 'rgba(127,227,176,0.22)';
-    c.textAlign = 'right';
-    c.fillText('FLARES', right - CFG.missile.pipWidth, this.h - 30);
-    for (let i = 0; i < maxSalvos; i++) {
-      const x = right - (maxSalvos - i) * (pipW + gap);
-      c.fillStyle = i < salvos ? (ready ? '#ffd166' : 'rgba(255,209,102,0.32)') : 'rgba(255,209,102,0.14)';
-      c.fillRect(x, this.h - 22, pipW, 11);
+    // countermeasures: flares defeat infrared, chaff defeats radar
+    const cm: ReadonlyArray<[string, number, number, number, boolean, string]> = [
+      ['FLARE', p.flares, CFG.flare.count, CFG.flare.salvo, p.flareCooldown <= 0, '255,209,102'],
+      ['CHAFF', p.chaff, CFG.chaff.count, CFG.chaff.salvo, p.chaffCooldown <= 0, '190,208,240'],
+    ];
+    let cy = this.h - 34;
+    for (const [label, held, max, salvo, ready, rgb] of cm) {
+      const salvos = Math.floor(held / salvo);
+      const maxSalvos = Math.floor(max / salvo);
+      c.fillStyle = ready && salvos > 0 ? DIM : 'rgba(127,227,176,0.22)';
+      c.textAlign = 'right';
+      c.fillText(label, right - CFG.missile.pipWidth, cy + 8);
+      for (let i = 0; i < maxSalvos; i++) {
+        const x = right - (maxSalvos - i) * (pipW + gap);
+        c.fillStyle = i < salvos
+          ? `rgba(${rgb},${ready ? 1 : 0.32})`
+          : `rgba(${rgb},0.14)`;
+        c.fillRect(x, cy, pipW, 10);
+      }
+      cy += 16;
     }
   }
 

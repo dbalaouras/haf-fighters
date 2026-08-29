@@ -3,7 +3,7 @@ import { CFG, TeamId, WeaponSpec, WEAPONS } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
 import { Terrain } from '../world/terrain';
 import { Fx } from './particles';
-import { Flare } from './flares';
+import { Decoy } from './countermeasures';
 import { clamp } from '../core/mathx';
 
 interface Missile {
@@ -18,9 +18,10 @@ interface Missile {
   /** the type this round was launched as — it carries its own performance */
   spec: WeaponSpec;
   /** set when the seeker has been spoofed; the missile chases this instead */
-  decoy: Flare | null;
-  /** a seeker gets exactly one chance to be fooled, so flare spam cannot guarantee a save */
+  decoy: Decoy | null;
+  /** a seeker gets exactly one chance per countermeasure type, so spam cannot guarantee a save */
   flareTested: boolean;
+  chaffTested: boolean;
   mesh: THREE.Mesh;
   trailAccum: number;
 }
@@ -57,7 +58,8 @@ export class MissileSystem {
       this.pool.push({
         alive: false, pos: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1),
         speed: 0, life: 0, owner: null as unknown as Aircraft, team: 'BLUE',
-        target: null, spec: WEAPONS.IR, decoy: null, flareTested: false, mesh, trailAccum: 0,
+        target: null, spec: WEAPONS.IR, decoy: null,
+        flareTested: false, chaffTested: false, mesh, trailAccum: 0,
       });
     }
   }
@@ -83,27 +85,34 @@ export class MissileSystem {
     m.target = target;
     m.decoy = null;
     m.flareTested = false;
+    m.chaffTested = false;
     m.trailAccum = 0;
     m.mesh.visible = true;
   }
 
   /**
    * A salvo has just been dispensed by `deployer`. Every live missile chasing them
-   * gets one chance to bite, weighted by whether the flares are actually in view of
-   * the seeker — flares dropped head-on or far away rarely work.
+   * gets one chance to bite, weighted by whether the decoys are actually in view of
+   * the seeker — countermeasures dropped head-on or far away rarely work.
+   *
+   * Which seeker each type fools is the whole point of carrying both: flares are an
+   * infrared decoy and chaff a radar one, so neither is a universal answer.
    */
-  onFlareSalvo(salvo: readonly Flare[], deployer: Aircraft) {
+  onDecoySalvo(salvo: readonly Decoy[], deployer: Aircraft) {
     if (!salvo.length) return;
-    const F = CFG.flare;
+    const chaff = salvo[0].kind === 'CHAFF';
+    const F = chaff ? CFG.chaff : CFG.flare;
+
     for (const m of this.pool) {
-      if (!m.alive || m.decoy || m.flareTested || m.target !== deployer) continue;
-      if (!m.spec.flareVulnerable) continue;   // flares are an infrared decoy
+      if (!m.alive || m.decoy || m.target !== deployer) continue;
+      if (chaff ? !m.spec.radarVulnerable : !m.spec.flareVulnerable) continue;
+      if (chaff ? m.chaffTested : m.flareTested) continue;
 
       const dist = m.pos.distanceTo(deployer.pos);
       if (dist > F.decoyRange) continue;
 
-      // pick the flare best placed to pull the seeker off
-      let best: Flare | null = null;
+      // pick the decoy best placed to pull the seeker off
+      let best: Decoy | null = null;
       let bestAngle = F.decoyCone;
       for (const f of salvo) {
         const ang = m.dir.angleTo(this._v.copy(f.pos).sub(m.pos).normalize());
@@ -111,7 +120,7 @@ export class MissileSystem {
       }
       if (!best) continue;
 
-      m.flareTested = true;
+      if (chaff) m.chaffTested = true; else m.flareTested = true;
       // Deploying early works best: a missile still well out has time to be pulled
       // off, while one about to arrive is committed. Well-centred salvos help too.
       const earliness = dist / F.decoyRange;
@@ -168,6 +177,7 @@ export class MissileSystem {
         // keep the threat warning alive on the victim
         tgt.threat = Math.max(tgt.threat, 1.2);
         tgt.threatRange = Math.min(tgt.threatRange, dist);
+        tgt.threatKind = m.spec.id;
       }
 
       const prevPos = this._axis.copy(m.pos);

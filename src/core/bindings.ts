@@ -2,7 +2,7 @@
 export type ActionId =
   | 'afterburner' | 'brake'
   | 'rudderLeft' | 'rudderRight'
-  | 'fireGun' | 'fireMissile' | 'swapWeapon' | 'flares'
+  | 'fireGun' | 'fireMissile' | 'swapWeapon' | 'flares' | 'chaff'
   | 'freeLook' | 'camera';
 
 export interface ActionDef {
@@ -20,7 +20,8 @@ export const ACTIONS: readonly ActionDef[] = [
   { id: 'fireGun', label: 'Cannon', default: 'Space' },
   { id: 'fireMissile', label: 'Missile', default: 'KeyR' },
   { id: 'swapWeapon', label: 'Swap missile', default: 'KeyQ' },
-  { id: 'flares', label: 'Flares', default: 'KeyF' },
+  { id: 'flares', label: 'Flares (infrared)', default: 'KeyF' },
+  { id: 'chaff', label: 'Chaff (radar)', default: 'KeyE' },
   { id: 'freeLook', label: 'Free look (hold)', default: 'ShiftLeft' },
   { id: 'camera', label: 'Camera', default: 'KeyC' },
 ];

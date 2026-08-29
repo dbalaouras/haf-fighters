@@ -71,7 +71,8 @@ bundle is an ES module, so it needs to be served over http(s).
 | Radar zoom | Scroll wheel | — |
 | Afterburner | `W` | yes |
 | Brake | `S` | yes |
-| Flares | `F` | yes |
+| Flares (infrared) | `F` | yes |
+| Chaff (radar) | `E` | yes |
 | Rudder | `A` / `D` | yes |
 | Camera (chase / cockpit) | `C` | yes |
 | Scoreboard | Hold `Tab` | — |
@@ -143,7 +144,12 @@ better:
 | Launch breaks lock | **yes** | no |
 | Time between shots | ~1.5 s (re-lock) | 8.5 s (reload) |
 | Seeker turn rate | 2.5 rad/s | 1.35 rad/s |
-| Flares | **spoof it** (~30%) | **no effect** |
+| Countered by | **Flares** (~30%) | **Chaff** (~30%) |
+
+Each has exactly one counter — flares are an infrared decoy, chaff a radar one — so
+neither missile is a universal answer and neither countermeasure is either. Measured
+over 200 launches per pairing: flares spoof 31% of heat-seekers and **0%** of radar
+rounds; chaff spoofs 30% of radar rounds and **0%** of heat-seekers.
 
 The heat-seeker is quick to lock and agile enough to follow a hard turn, but flares
 beat it. Firing one **breaks the lock**, so its rate of fire is set by how fast you
@@ -301,11 +307,12 @@ key. Bank, then pull to turn, and roll out by hand. This is what the AI pilots f
   the reticle and the `CANNON` readout both show heat.
 - **Missiles** need a held lock: the yellow brackets shrink onto the target and turn
   red at 1.5 s. Six per aircraft, 6 s between launches.
-- **Flares** decoy incoming missiles — around a third of launches get spoofed. Deploy
-  *early*: a missile still well out has time to be pulled off, while one about to
-  arrive is committed. Each seeker gets exactly one chance to be fooled, so dumping
-  your whole load at one missile is no better than a single well-timed salvo. Eight
-  salvos of four, three quarters of a second apart.
+- **Countermeasures** decoy incoming missiles — around a third get spoofed. `F` drops
+  flares against heat-seekers, `E` drops chaff against radar rounds, and each is inert
+  against the other seeker, so read the missile warning before you reach for one.
+  Deploy *early*: a missile still well out has time to be pulled off, while one about
+  to arrive is committed. Each seeker gets exactly one chance per type, so dumping
+  your whole load at one missile is no better than a single well-timed salvo.
 - **The afterburner is a limited resource, not a throttle.** See below.
 - **Hits break things, not just the hull.** Rounds into the tail wreck the engine,
   into the wings the controls, into the belly the fuel. A wrecked engine costs you

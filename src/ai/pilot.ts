@@ -180,11 +180,19 @@ export class Pilot {
         c.throttle = 1;
         c.burner = true;
         this.flareTimer -= dt;
-        // keep dispensing while the threat is live; the cooldown paces the salvos
-        // only worth dispensing once the missile is close enough to be spoofed,
-        // otherwise a jet burns its whole load on a shot that was never going to hit
-        if (this.flareTimer <= 0 && jet.threat > 0 && jet.flares >= CFG.flare.salvo
-            && jet.threatRange < CFG.flare.decoyRange) c.flares = true;
+        // Pick the countermeasure matching the seeker actually chasing them — flares
+        // do nothing against a radar round and chaff nothing against a heat-seeker —
+        // and only once it is close enough to be spoofed at all, or a jet burns its
+        // whole load on a shot that was never going to reach it.
+        if (this.flareTimer <= 0 && jet.threat > 0) {
+          if (jet.threatKind === 'RADAR') {
+            if (jet.chaff >= CFG.chaff.salvo && jet.threatRange < CFG.chaff.decoyRange) {
+              c.chaff = true;
+            }
+          } else if (jet.flares >= CFG.flare.salvo && jet.threatRange < CFG.flare.decoyRange) {
+            c.flares = true;
+          }
+        }
         // hard break turn away from the missile, descending slightly to bleed the seeker
         _dir.copy(jet.right(_tmp)).multiplyScalar(this.evadeSign).addScaledVector(jet.forward(_l), 0.35);
         _dir.y -= 0.25;

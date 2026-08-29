@@ -254,6 +254,7 @@ export class Overlay {
       [k('afterburner'), 'burner'],
       [k('brake'), 'brake'],
       [k('flares'), 'flares'],
+      [k('chaff'), 'chaff'],
       [k('freeLook'), 'look'],
       ['Scroll', 'radar'],
     ];

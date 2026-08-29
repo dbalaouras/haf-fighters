@@ -13,13 +13,14 @@ export interface Controls {
   gun: boolean;
   missile: boolean;
   flares: boolean;
+  chaff: boolean;
 }
 
 export type SystemId = 'engine' | 'controls' | 'fuel';
 
 export const newControls = (): Controls => ({
   pitch: 0, roll: 0, yaw: 0, throttle: 0.7, burner: false,
-  gun: false, missile: false, flares: false,
+  gun: false, missile: false, flares: false, chaff: false,
 });
 
 const AX = new THREE.Vector3(1, 0, 0);
@@ -70,6 +71,8 @@ export class Aircraft {
 
   flares: number = CFG.flare.count;
   flareCooldown = 0;
+  chaff: number = CFG.chaff.count;
+  chaffCooldown = 0;
 
   /** 0..1 afterburner fuel; drains while lit, refills once the request is released */
   burnerFuel = 1;
@@ -88,6 +91,8 @@ export class Aircraft {
   /** raised by the missile system while a live missile is tracking this aircraft */
   threat = 0;
   threatRange = Infinity;
+  /** what kind of seeker is chasing you, so you can pick the right countermeasure */
+  threatKind: WeaponId | null = null;
 
   kills = 0;
   deaths = 0;
@@ -305,6 +310,7 @@ export class Aircraft {
     this.gunCooldown -= dt;
     this.missileCooldown -= dt;
     this.flareCooldown -= dt;
+    this.chaffCooldown -= dt;
     this.gunHeat = Math.max(0, this.gunHeat - CFG.gun.heatCool * dt);
     if (this.gunOverheated && this.gunHeat <= CFG.gun.heatResume) this.gunOverheated = false;
     this.threat = Math.max(0, this.threat - dt);
@@ -417,6 +423,7 @@ export class Aircraft {
     this.controls.gun = false;
     this.controls.missile = false;
     this.controls.flares = false;
+    this.controls.chaff = false;
     this.controls.burner = false;
     this.burnerActive = false;
     this.lockTarget = null;
@@ -437,6 +444,8 @@ export class Aircraft {
     this.weapon = 'IR';
     this.flares = CFG.flare.count;
     this.flareCooldown = 0;
+    this.chaff = CFG.chaff.count;
+    this.chaffCooldown = 0;
     this.burnerFuel = 1;
     this.burnerActive = false;
     this.systems.engine = this.systems.controls = this.systems.fuel = 1;
