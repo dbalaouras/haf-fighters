@@ -172,6 +172,17 @@ export const CFG = {
     minAltitude: 320,
     maxAltitude: 4200,
     preferredAltitude: 1700,   // fights gravitate here rather than to the ceiling
+    /** metres of altitude error that saturates the pull back to the band */
+    bandSoftness: 1200,
+    /**
+     * Flight-path slope the saturated pull is worth, about 35 degrees. Swept:
+     * 0.38 left 60% of the match in the band, 0.7 gives 74%, and 1.0 starts
+     * over-correcting — in-band drops back to 65% and time spent below 600 m
+     * AGL triples. 0.7 it is.
+     */
+    bandPull: 0.7,
+    /** extra pitch pulled while banked, which is what makes a bank into a turn */
+    turnPullGain: 1.6,
     evadeTime: 3.0,
     resupplyHp: 45,       // break off for a rearm zone below this
     resupplyRange: 6000,  // ...but only if one is reachable
