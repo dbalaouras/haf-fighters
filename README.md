@@ -1,4 +1,4 @@
-# HAR Fighters
+# HAF Fighters
 
 A 5v5 arcade jet dogfighter in the browser. One map, one airframe, ten aircraft in
 the air: you plus four AI wingmen against five AI bandits. Deliberately **not** a
@@ -31,7 +31,7 @@ Type-checks and produces a static bundle in `dist/` — deployable to any static
 
 ## Deploying
 
-**No backend.** HAR Fighters is a pure static front end — the whole game runs in the
+**No backend.** HAF Fighters is a pure static front end — the whole game runs in the
 browser. There is no API, no database, no environment variables and no runtime
 network traffic at all: the terrain, ocean, sky, aircraft and every sound are
 generated in code, so the built site is one `index.html` plus a single hashed JS

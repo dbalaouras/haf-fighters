@@ -158,7 +158,7 @@ export const CFG = {
   },
 } as const;
 
-export const GAME_NAME = 'HAR FIGHTERS';
+export const GAME_NAME = 'HAF FIGHTERS';
 
 /** The one airframe everyone flies, shown in the scoreboard's aircraft column. */
 export const AIRFRAME = 'FA-9';

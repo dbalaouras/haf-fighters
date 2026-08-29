@@ -1,6 +1,6 @@
 # AWS Amplify Hosting build spec.
 #
-# HAR Fighters is a purely static single-page app: `npm run build` emits an index.html
+# HAF Fighters is a purely static single-page app: `npm run build` emits an index.html
 # and one hashed JS bundle, and nothing is fetched at runtime. There is no backend,
 # no API, and no environment variables to configure.
 version: 1

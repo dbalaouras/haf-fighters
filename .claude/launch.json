@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "har-fighters",
+      "name": "haf-fighters",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
@@ -15,7 +15,7 @@
       "port": 5180
     },
     {
-      "name": "har-fighters-dist",
+      "name": "haf-fighters-dist",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "vite",

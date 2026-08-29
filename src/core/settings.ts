@@ -14,9 +14,9 @@ export interface SettingsData {
   bindings: Bindings;
 }
 
-const KEY = 'harfighters.settings.v1';
-/** previous name of this game — read once so existing preferences survive the rename */
-const LEGACY_KEY = 'skyclash.settings.v2';
+const KEY = 'haffighters.settings.v1';
+/** earlier names for this game — read as fallbacks so preferences survive renames */
+const LEGACY_KEYS = ['harfighters.settings.v1', 'skyclash.settings.v2'];
 
 const DEFAULTS: SettingsData = {
   invertPitch: false,
@@ -40,7 +40,11 @@ export class Settings {
 
   private load() {
     try {
-      const raw = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
+      let raw = localStorage.getItem(KEY);
+      for (const legacy of LEGACY_KEYS) {
+        if (raw) break;
+        raw = localStorage.getItem(legacy);
+      }
       if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<SettingsData>;
       for (const k of Object.keys(DEFAULTS) as Array<keyof SettingsData>) {
