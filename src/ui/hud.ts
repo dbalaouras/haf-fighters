@@ -532,7 +532,7 @@ export class Hud {
       c.globalAlpha = 1;
     }
 
-    this.bar(x, y + 68, w, h, p.hp / CFG.hull.hp,
+    this.bar(x, y + 68, w, h, p.hp / p.frame.hp,
       p.hp > 60 ? ACCENT : p.hp > 30 ? '#ffd166' : WARN, `HULL ${p.hp.toFixed(0)}%`);
 
     // subsystem condition, so a hit reads as "what broke" and not just a number
@@ -591,8 +591,9 @@ export class Hud {
       c.fillStyle = col;
       c.fillText(`${active ? '▸ ' : ''}${spec.tag}`, right - CFG.missile.pipWidth, wy);
 
-      for (let i = 0; i < spec.count; i++) {
-        const x = right - (spec.count - i) * (pipW + gap);
+      const capacity = p.frame.ammo[id];
+      for (let i = 0; i < capacity; i++) {
+        const x = right - (capacity - i) * (pipW + gap);
         c.fillStyle = i < rounds
           ? (active ? ACCENT : 'rgba(127,227,176,0.4)')
           : 'rgba(127,227,176,0.14)';
@@ -605,7 +606,7 @@ export class Hud {
     if (p.missileCooldown > 0 && p.missiles > 0) {
       const spec = p.weaponSpec;
       const t = 1 - clamp01(p.missileCooldown / spec.reload);
-      const w = spec.count * (pipW + gap);
+      const w = p.frame.ammo[p.weapon] * (pipW + gap);
       c.fillStyle = '#ffd166';
       c.fillRect(right - w, wy - 2, w * t, 2.5);
     }
@@ -613,8 +614,8 @@ export class Hud {
     // flares, counted in salvos since that is how they are dispensed
     // countermeasures: flares defeat infrared, chaff defeats radar
     const cm: ReadonlyArray<[string, number, number, number, boolean, string]> = [
-      ['FLARE', p.flares, CFG.flare.count, CFG.flare.salvo, p.flareCooldown <= 0, '255,209,102'],
-      ['CHAFF', p.chaff, CFG.chaff.count, CFG.chaff.salvo, p.chaffCooldown <= 0, '190,208,240'],
+      ['FLARE', p.flares, p.frame.flares, CFG.flare.salvo, p.flareCooldown <= 0, '255,209,102'],
+      ['CHAFF', p.chaff, p.frame.chaff, CFG.chaff.salvo, p.chaffCooldown <= 0, '190,208,240'],
     ];
     let cy = this.h - 34;
     for (const [label, held, max, salvo, ready, rgb] of cm) {

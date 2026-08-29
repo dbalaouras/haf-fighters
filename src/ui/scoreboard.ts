@@ -1,4 +1,4 @@
-import { AIRFRAME, CFG, MODE_NAME, TEAM, TeamId } from '../core/config';
+import { CFG, MODE_NAME, TEAM, TeamId } from '../core/config';
 import { fmtTime } from '../core/mathx';
 
 export interface PilotRow {
@@ -8,6 +8,7 @@ export interface PilotRow {
   assists: number;
   score: number;
   isPlayer: boolean;
+  airframe: string;
   alive: boolean;
   respawnIn: number;
 }
@@ -54,7 +55,7 @@ export function scoreboardHtml(info: MatchInfo): string {
         return `
         <div class="sb-row${p.isPlayer ? ' me' : ''}${p.alive ? '' : ' down'}">
           <span class="sb-name">${badge}${p.name}${p.alive ? '' : `<u>DOWN ${p.respawnIn}s</u>`}</span>
-          <span class="sb-air">${AIRFRAME}</span>
+          <span class="sb-air">${p.airframe}</span>
           <span class="sb-kda">${p.kills} / ${p.deaths} / ${p.assists}</span>
           <span class="sb-pts">${p.score.toLocaleString()}</span>
         </div>`;

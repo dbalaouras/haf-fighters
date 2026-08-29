@@ -61,8 +61,17 @@ function buildPart(key: string, make: () => THREE.BufferGeometry): THREE.BufferG
   return g;
 }
 
-export function buildJet(teamColor: number): JetVisual {
+export interface JetShape {
+  span: number;
+  length: number;
+  tail: 'twin' | 'single';
+}
+
+const DEFAULT_SHAPE: JetShape = { span: 1, length: 1, tail: 'twin' };
+
+export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): JetVisual {
   const group = new THREE.Group();
+  const key = `${shape.span}-${shape.length}-${shape.tail}`;
 
   const body = mat('body', () => new THREE.MeshLambertMaterial({ color: 0x8a949e, flatShading: true }));
   const dark = mat('dark', () => new THREE.MeshLambertMaterial({ color: 0x3a4149, flatShading: true }));
@@ -74,8 +83,9 @@ export function buildJet(teamColor: number): JetVisual {
     color: 0x8fd6ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false,
   }));
 
-  const bodyGeo = buildPart('jet-body', () => {
+  const bodyGeo = buildPart(`jet-body-${key}`, () => {
     const parts: THREE.BufferGeometry[] = [];
+    // span and length scale the planform, which is most of the silhouette
 
     const fus = new THREE.CylinderGeometry(0.95, 0.82, 10, 10, 1);
     fus.rotateX(Math.PI / 2);
@@ -94,10 +104,12 @@ export function buildJet(teamColor: number): JetVisual {
       if (side < 0) tp.scale(-1, 1, 1);
       parts.push(tp);
     }
-    return merge(parts);
+    const g = merge(parts);
+    g.scale(shape.span, 1, shape.length);
+    return g;
   });
 
-  const darkGeo = buildPart('jet-dark', () => {
+  const darkGeo = buildPart(`jet-dark-${key}`, () => {
     const parts: THREE.BufferGeometry[] = [];
     for (const side of [-1, 1]) {
       const intake = new THREE.BoxGeometry(0.9, 0.85, 4.2);
@@ -109,35 +121,47 @@ export function buildJet(teamColor: number): JetVisual {
       nozzle.translate(side * 0.7, 0, 5.4);
       parts.push(nozzle);
     }
-    return merge(parts);
+    const g = merge(parts);
+    g.scale(shape.span, 1, shape.length);
+    return g;
   });
 
-  const accentGeo = buildPart('jet-accent', () => {
+  const accentGeo = buildPart(`jet-accent-${key}`, () => {
     const parts: THREE.BufferGeometry[] = [];
+    if (shape.tail === 'single') {
+      // one upright fin on the centreline instead of a canted pair
+      const f = panel(FIN, 0.18);
+      f.rotateZ(Math.PI / 2);
+      f.scale(1.25, 1, 1);
+      parts.push(f);
+    }
     for (const side of [-1, 1]) {
       // the wing is swept, so the tip chord sits BEHIND the root — +z, not -z
       const tip = new THREE.BoxGeometry(1.5, 0.26, 1.4);
       tip.translate(side * 5.75, 0, 1.9);
       parts.push(tip);
 
-      // twin canted fins
-      const f = panel(FIN, 0.16);
-      f.rotateZ(Math.PI / 2);
-      f.rotateZ(side * 0.22);
-      f.translate(side * 1.1, 0.5, 0);
-      parts.push(f);
+      if (shape.tail === 'twin') {
+        const f = panel(FIN, 0.16);
+        f.rotateZ(Math.PI / 2);
+        f.rotateZ(side * 0.22);
+        f.translate(side * 1.1, 0.5, 0);
+        parts.push(f);
+      }
     }
-    return merge(parts);
+    const g = merge(parts);
+    g.scale(shape.span, 1, shape.length);
+    return g;
   });
 
-  const glassGeo = buildPart('jet-glass', () => {
+  const glassGeo = buildPart(`jet-glass-${key}`, () => {
     const canopy = new THREE.SphereGeometry(1, 12, 8);
     canopy.scale(0.8, 0.72, 2.1);
     canopy.translate(0, 0.8, -2.4);
     return canopy;
   });
 
-  const burnerGeo = buildPart('jet-burner', () => {
+  const burnerGeo = buildPart(`jet-burner-${key}`, () => {
     const cone = new THREE.ConeGeometry(0.46, 1, 8, 1, true);
     cone.rotateX(Math.PI / 2);
     cone.translate(0, 0, 0.5);

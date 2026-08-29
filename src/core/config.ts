@@ -198,68 +198,6 @@ export const CFG = {
 export const GAME_NAME = 'HAF FIGHTERS';
 
 /** The one airframe everyone flies, shown in the scoreboard's aircraft column. */
-export const AIRFRAME = 'FA-9';
-
-export const MODE_NAME = 'TEAM DEATHMATCH';
-
-export type TeamId = 'BLUE' | 'RED';
-
-export const TEAM = {
-  BLUE: { id: 'BLUE' as TeamId, color: 0x4aa8ff, css: '#5ab6ff', spawn: { x: -2700, z: 2200, heading: -0.68 } },
-  RED: { id: 'RED' as TeamId, color: 0xff5c4a, css: '#ff7a66', spawn: { x: 2700, z: -2200, heading: Math.PI - 0.68 } },
-} as const;
-
-export type DifficultyId = 'ROOKIE' | 'REGULAR' | 'ACE';
-
-export interface DifficultySpec {
-  id: DifficultyId;
-  label: string;
-  blurb: string;
-  /** pilot skill spread — trigger discipline and reaction timing */
-  skillBase: number;
-  skillStep: number;
-  skillJitter: number;
-  skillMin: number;
-  skillMax: number;
-  /**
-   * How strongly bandits prefer the player as a target, in target-score metres.
-   *
-   * Difficulty is built from levers that make bandits dangerous *to the player*
-   * rather than from pilot "skill". Skill turned out to trade offence for defence —
-   * evading, flaring and breaking off all take a pilot out of the attack — and with
-   * a five second respawn the scoring rewards aggression, so more skilful bandits
-   * measurably scored *worse*. These three levers are purely offensive and measured
-   * monotonic against the player.
-   */
-  playerBias: number;
-  /** multiplier on missile lock time — lower locks quicker */
-  lockScale: number;
-  /** multiplier on missile reload */
-  reloadScale: number;
-  /** multiplier on how long they take to reach for the flare button */
-  flareReaction: number;
-}
-
-export const DIFFICULTIES: Record<DifficultyId, DifficultySpec> = {
-  ROOKIE: {
-    id: 'ROOKIE', label: 'ROOKIE', blurb: 'Slow to lock, and rarely singles you out',
-    skillBase: 0.12, skillStep: 0.07, skillJitter: 0.08, skillMin: 0.05, skillMax: 0.45,
-    playerBias: 0, lockScale: 1.6, reloadScale: 1.6, flareReaction: 2.1,
-  },
-  REGULAR: {
-    id: 'REGULAR', label: 'REGULAR', blurb: 'A fair fight — what everything was balanced against',
-    skillBase: 0.34, skillStep: 0.09, skillJitter: 0.10, skillMin: 0.20, skillMax: 0.85,
-    playerBias: 350, lockScale: 1, reloadScale: 1, flareReaction: 1,
-  },
-  ACE: {
-    id: 'ACE', label: 'ACE', blurb: 'Locks fast, reloads fast, and comes looking for you',
-    skillBase: 0.60, skillStep: 0.09, skillJitter: 0.08, skillMin: 0.50, skillMax: 1,
-    playerBias: 1100, lockScale: 0.62, reloadScale: 0.6, flareReaction: 0.55,
-  },
-};
-
-export const DIFFICULTY_ORDER: readonly DifficultyId[] = ['ROOKIE', 'REGULAR', 'ACE'];
-
 export type WeaponId = 'IR' | 'RADAR';
 
 export interface WeaponSpec {
@@ -321,5 +259,125 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
 };
 
 export const WEAPON_ORDER: readonly WeaponId[] = ['IR', 'RADAR'];
+
+export type AirframeId = 'F16' | 'FA9' | 'F22';
+
+export interface AirframeSpec {
+  id: AirframeId;
+  name: string;
+  role: string;
+  /** level top speed, and with the burner lit */
+  speedMax: number;
+  speedBurner: number;
+  /** rad/s of control authority */
+  pitchRate: number;
+  rollRate: number;
+  hp: number;
+  /** burner fuel burned per second lit; the refill rate is shared */
+  burnerBurn: number;
+  ammo: Record<WeaponId, number>;
+  flares: number;
+  chaff: number;
+  /** mesh proportions, so the three read apart at distance */
+  shape: { span: number; length: number; tail: 'twin' | 'single' };
+}
+
+/**
+ * Three airframes with an honest triangle between them: the F-16 out-turns
+ * everything and carries the heat-seekers to use that, the F-22 outruns and
+ * out-ranges everything with a radar-heavy load, and the FA-9 sits between.
+ */
+export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
+  F16: {
+    id: 'F16', name: 'F-16', role: 'Knife-fighter — best turn, light, thirsty',
+    speedMax: 306, speedBurner: 412,
+    pitchRate: 1.46, rollRate: 3.65,
+    hp: 86, burnerBurn: 0.31,
+    ammo: { IR: 8, RADAR: 2 },
+    flares: 40, chaff: 16,
+    shape: { span: 0.88, length: 0.92, tail: 'single' },
+  },
+  FA9: {
+    id: 'FA9', name: 'FA-9', role: 'All-rounder — no weakness, no edge',
+    speedMax: 320, speedBurner: 430,
+    pitchRate: 1.30, rollRate: 3.05,
+    hp: 100, burnerBurn: 0.25,
+    ammo: { IR: 6, RADAR: 4 },
+    flares: 32, chaff: 24,
+    shape: { span: 1, length: 1, tail: 'twin' },
+  },
+  F22: {
+    id: 'F22', name: 'F-22', role: 'Interceptor — fastest, toughest, radar-heavy',
+    speedMax: 358, speedBurner: 482,
+    pitchRate: 1.18, rollRate: 2.62,
+    hp: 114, burnerBurn: 0.205,
+    ammo: { IR: 4, RADAR: 6 },
+    flares: 24, chaff: 32,
+    shape: { span: 1.12, length: 1.1, tail: 'twin' },
+  },
+};
+
+export const AIRFRAME_ORDER: readonly AirframeId[] = ['F16', 'FA9', 'F22'];
+
+export const MODE_NAME = 'TEAM DEATHMATCH';
+
+export type TeamId = 'BLUE' | 'RED';
+
+export const TEAM = {
+  BLUE: { id: 'BLUE' as TeamId, color: 0x4aa8ff, css: '#5ab6ff', spawn: { x: -2700, z: 2200, heading: -0.68 } },
+  RED: { id: 'RED' as TeamId, color: 0xff5c4a, css: '#ff7a66', spawn: { x: 2700, z: -2200, heading: Math.PI - 0.68 } },
+} as const;
+
+export type DifficultyId = 'ROOKIE' | 'REGULAR' | 'ACE';
+
+export interface DifficultySpec {
+  id: DifficultyId;
+  label: string;
+  blurb: string;
+  /** pilot skill spread — trigger discipline and reaction timing */
+  skillBase: number;
+  skillStep: number;
+  skillJitter: number;
+  skillMin: number;
+  skillMax: number;
+  /**
+   * How strongly bandits prefer the player as a target, in target-score metres.
+   *
+   * Difficulty is built from levers that make bandits dangerous *to the player*
+   * rather than from pilot "skill". Skill turned out to trade offence for defence —
+   * evading, flaring and breaking off all take a pilot out of the attack — and with
+   * a five second respawn the scoring rewards aggression, so more skilful bandits
+   * measurably scored *worse*. These three levers are purely offensive and measured
+   * monotonic against the player.
+   */
+  playerBias: number;
+  /** multiplier on missile lock time — lower locks quicker */
+  lockScale: number;
+  /** multiplier on missile reload */
+  reloadScale: number;
+  /** multiplier on how long they take to reach for the flare button */
+  flareReaction: number;
+}
+
+export const DIFFICULTIES: Record<DifficultyId, DifficultySpec> = {
+  ROOKIE: {
+    id: 'ROOKIE', label: 'ROOKIE', blurb: 'Slow to lock, and rarely singles you out',
+    skillBase: 0.12, skillStep: 0.07, skillJitter: 0.08, skillMin: 0.05, skillMax: 0.45,
+    playerBias: 0, lockScale: 1.6, reloadScale: 1.6, flareReaction: 2.1,
+  },
+  REGULAR: {
+    id: 'REGULAR', label: 'REGULAR', blurb: 'A fair fight — what everything was balanced against',
+    skillBase: 0.34, skillStep: 0.09, skillJitter: 0.10, skillMin: 0.20, skillMax: 0.85,
+    playerBias: 350, lockScale: 1, reloadScale: 1, flareReaction: 1,
+  },
+  ACE: {
+    id: 'ACE', label: 'ACE', blurb: 'Locks fast, reloads fast, and comes looking for you',
+    skillBase: 0.60, skillStep: 0.09, skillJitter: 0.08, skillMin: 0.50, skillMax: 1,
+    playerBias: 1100, lockScale: 0.62, reloadScale: 0.6, flareReaction: 0.55,
+  },
+};
+
+export const DIFFICULTY_ORDER: readonly DifficultyId[] = ['ROOKIE', 'REGULAR', 'ACE'];
+
 
 export const other = (t: TeamId): TeamId => (t === 'BLUE' ? 'RED' : 'BLUE');

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { CFG, DifficultyId, DIFFICULTIES, TEAM, TeamId, WEAPONS, other } from './config';
+import {
+  AirframeId, AIRFRAMES, AIRFRAME_ORDER, CFG, DifficultyId, DIFFICULTIES,
+  TEAM, TeamId, WEAPONS, other,
+} from './config';
 import { clamp, clamp01, damp, lerp, rand } from './mathx';
 import { Input } from './input';
 import { Terrain } from '../world/terrain';
@@ -55,6 +58,7 @@ export class Game {
   private slot = new Map<Aircraft, number>();
 
   private difficulty: DifficultyId;
+  private airframe: AirframeId;
   score: Record<TeamId, number> = { BLUE: 0, RED: 0 };
   timeLeft = CFG.match.timeLimit;
   time = 0;
@@ -100,6 +104,7 @@ export class Game {
   ) {
     this.audio = new Sound(settings);
     this.difficulty = settings.data.difficulty;
+    this.airframe = settings.data.airframe;
     this.renderer = new THREE.WebGLRenderer({
       canvas: sceneCanvas, antialias: true, powerPreference: 'high-performance',
     });
@@ -119,6 +124,11 @@ export class Game {
       if (d.difficulty !== this.difficulty) {
         this.difficulty = d.difficulty;
         this.configurePilots();
+      }
+      if (d.airframe !== this.airframe) {
+        this.airframe = d.airframe;
+        this.player.setFrame(AIRFRAMES[d.airframe], this.scene);
+        this.reset();
       }
     });
     this.player.name = settings.data.pilotName;
@@ -188,7 +198,11 @@ export class Game {
     for (const team of ['BLUE', 'RED'] as TeamId[]) {
       for (let i = 0; i < CFG.match.teamSize; i++) {
         const isPlayer = team === 'BLUE' && i === 0;
-        const a = new Aircraft(team, CALLSIGNS[team][i], isPlayer);
+        // the player flies their pick; bandits and wingmen draw a mixed squadron
+        const frame = isPlayer
+          ? AIRFRAMES[this.settings.data.airframe]
+          : AIRFRAMES[AIRFRAME_ORDER[(i + (team === 'RED' ? 1 : 0)) % AIRFRAME_ORDER.length]];
+        const a = new Aircraft(team, CALLSIGNS[team][i], frame, isPlayer);
         this.slot.set(a, i);
         a.respawn(i);
         this.scene.add(a.object);
@@ -695,7 +709,7 @@ export class Game {
         .filter((a) => a.team === t)
         .map((a) => ({
           name: a.name, kills: a.kills, deaths: a.deaths, assists: a.assists,
-          score: a.score, isPlayer: a.isPlayer, alive: a.alive,
+          score: a.score, isPlayer: a.isPlayer, airframe: a.frame.name, alive: a.alive,
           respawnIn: a.alive ? 0 : Math.max(0, Math.ceil(a.respawnTimer)),
         }))
         .sort((x, y) => y.score - x.score),

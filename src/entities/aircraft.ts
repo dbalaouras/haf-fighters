@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { CFG, TeamId, TEAM, WeaponId, WeaponSpec, WEAPONS, WEAPON_ORDER } from '../core/config';
+import {
+  AirframeSpec, CFG, TeamId, TEAM, WeaponId, WeaponSpec, WEAPONS, WEAPON_ORDER,
+} from '../core/config';
 import { clamp, clamp01, damp, lerp, rand } from '../core/mathx';
 import { buildJet, JetVisual } from './jetMesh';
+
 
 export interface Controls {
   pitch: number;    // +1 nose up
@@ -34,8 +37,8 @@ export class Aircraft {
   readonly team: TeamId;
   name: string;
   readonly isPlayer: boolean;
-  readonly visual: JetVisual;
-  readonly object: THREE.Group;
+  visual: JetVisual;
+  object: THREE.Group;
 
   pos = new THREE.Vector3();
   quat = new THREE.Quaternion();
@@ -53,7 +56,7 @@ export class Aircraft {
   /** body angular rates actually applied last frame — used for G and drag */
   rates = { p: 0, q: 0, r: 0 };
 
-  hp: number = CFG.hull.hp;
+  hp: number;
   /** 1 = intact, 0 = destroyed. Degrades alongside hull, never instead of it. */
   systems: Record<SystemId, number> = { engine: 1, controls: 1, fuel: 1 };
   alive = true;
@@ -65,13 +68,13 @@ export class Aircraft {
   gunOverheated = false;
 
   /** rounds remaining per missile type */
-  ammo: Record<WeaponId, number> = { IR: WEAPONS.IR.count, RADAR: WEAPONS.RADAR.count };
+  ammo: Record<WeaponId, number> = { IR: 0, RADAR: 0 };
   weapon: WeaponId = 'IR';
   missileCooldown = 0;
 
-  flares: number = CFG.flare.count;
+  flares = 0;
   flareCooldown = 0;
-  chaff: number = CFG.chaff.count;
+  chaff = 0;
   chaffCooldown = 0;
 
   /** 0..1 afterburner fuel; drains while lit, refills once the request is released */
@@ -111,12 +114,27 @@ export class Aircraft {
   private _up = new THREE.Vector3();
   private burnerFlicker = 0;
 
-  constructor(team: TeamId, name: string, isPlayer = false) {
+  /** which airframe this is, and therefore most of how it flies */
+  frame: AirframeSpec;
+
+  constructor(team: TeamId, name: string, frame: AirframeSpec, isPlayer = false) {
     this.team = team;
     this.name = name;
+    this.frame = frame;
     this.isPlayer = isPlayer;
-    this.visual = buildJet(TEAM[team].color);
+    this.hp = frame.hp;
+    this.visual = buildJet(TEAM[team].color, frame.shape);
     this.object = this.visual.group;
+  }
+
+  /** Swap airframe between matches; rebuilds the mesh to match. */
+  setFrame(frame: AirframeSpec, parent: THREE.Object3D) {
+    if (this.frame === frame) return;
+    this.frame = frame;
+    parent.remove(this.object);
+    this.visual = buildJet(TEAM[this.team].color, frame.shape);
+    this.object = this.visual.group;
+    parent.add(this.object);
   }
 
   forward(out = this._fwd): THREE.Vector3 { return out.set(0, 0, -1).applyQuaternion(this.quat); }
@@ -221,8 +239,8 @@ export class Aircraft {
   private targetSpeed(): number {
     const F = CFG.flight;
     const base = this.burnerActive
-      ? F.speedBurner
-      : lerp(F.speedMin, F.speedMax, clamp01(this.controls.throttle));
+      ? this.frame.speedBurner
+      : lerp(F.speedMin, this.frame.speedMax, clamp01(this.controls.throttle));
     // a wrecked engine cannot hold the speed the throttle is asking for
     return F.speedMin * 0.7 + (base - F.speedMin * 0.7) * this.thrustFactor();
   }
@@ -244,7 +262,7 @@ export class Aircraft {
     if (leak > 0) this.burnerFuel = Math.max(0, this.burnerFuel - leak * dt);
 
     if (this.burnerActive) {
-      this.burnerFuel = Math.max(0, this.burnerFuel - F.burnerBurn * dt);
+      this.burnerFuel = Math.max(0, this.burnerFuel - this.frame.burnerBurn * dt);
       if (this.burnerFuel <= 0) this.burnerActive = false;
     } else if (!wants) {
       this.burnerFuel = clamp01(this.burnerFuel + F.burnerRegen * dt);
@@ -290,7 +308,7 @@ export class Aircraft {
     this.speed = damp(this.speed, target, k, dt);
     this.speed -= F.gravityPull * fwd.y * dt;
     // induced drag from hard manoeuvring, measured off the actual pull
-    const pull = Math.abs(this.rates.q) / F.pitchRate;
+    const pull = Math.abs(this.rates.q) / this.frame.pitchRate;
     this.speed -= (pull * 26 + Math.abs(this.surf.roll) * 5) * dt;
     this.speed = clamp(this.speed, F.speedMin * 0.55, F.speedBurner * 1.2);
 
@@ -304,7 +322,7 @@ export class Aircraft {
 
     // Turn rates here are arcade, not aerodynamic — deriving G physically from them
     // reads as ~30 g. Show it as a load gauge instead: 1 g relaxed, ~9 g at the limit.
-    this.gforce = 1 + 8 * clamp01(Math.hypot(this.rates.q, this.rates.r) / F.pitchRate);
+    this.gforce = 1 + 8 * clamp01(Math.hypot(this.rates.q, this.rates.r) / this.frame.pitchRate);
 
     // cooldowns
     this.gunCooldown -= dt;
@@ -320,11 +338,10 @@ export class Aircraft {
 
   /** Raw rate control: stick position maps straight onto body angular rates. */
   private directRates(auth: number) {
-    const F = CFG.flight;
     return {
-      p: this.surf.roll * F.rollRate * auth,
-      q: this.surf.pitch * F.pitchRate * auth,
-      r: this.surf.yaw * F.yawRate * auth,
+      p: this.surf.roll * this.frame.rollRate * auth,
+      q: this.surf.pitch * this.frame.pitchRate * auth,
+      r: this.surf.yaw * CFG.flight.yawRate * auth,
     };
   }
 
@@ -345,23 +362,23 @@ export class Aircraft {
     // roll: proportional attitude hold, which auto-levels at zero input
     const targetBank = this.surf.roll * A.maxBank;
     const rollCmd = clamp((targetBank - bank) * A.bankGain, -1, 1);
-    const p = rollCmd * F.rollRate * auth;
+    const p = rollCmd * this.frame.rollRate * auth;
 
     // the turn fades out when pointing near-vertical, where "bank" is meaningless
     const vertical = 1 - clamp01((Math.abs(this.forward().y) - 0.9) / 0.09);
     const omega = A.maxTurn * Math.sin(bank) * auth * vertical;
 
-    let q = omega * Math.sin(bank) + this.surf.pitch * F.pitchRate * auth;
+    let q = omega * Math.sin(bank) + this.surf.pitch * this.frame.pitchRate * auth;
     let r = omega * Math.cos(bank);
 
     // hands off the pitch axis: bring the nose back to the horizon
     if (Math.abs(this.surf.pitch) < A.pitchDeadzone) {
       const correction = clamp(-this.pitchAngle * A.levelGain, -1, 1);
-      q += correction * F.pitchRate * auth * A.levelStrength * vertical;
+      q += correction * this.frame.pitchRate * auth * A.levelStrength * vertical;
     }
 
     // cap total turn authority at the manual limit so assist is never an advantage
-    const cap = F.pitchRate * auth;
+    const cap = this.frame.pitchRate * auth;
     const mag = Math.hypot(q, r);
     if (mag > cap) { const k = cap / mag; q *= k; r *= k; }
 
@@ -437,14 +454,14 @@ export class Aircraft {
     this.pos.set(s.x + lane, 1500 + rand(-140, 240), s.z + lane * 0.35);
     this.quat.setFromEuler(new THREE.Euler(0, s.heading, 0, 'YXZ'));
     this.speed = CFG.flight.speedCruise + 40;
-    this.hp = CFG.hull.hp;
+    this.hp = this.frame.hp;
     this.alive = true;
-    this.ammo.IR = WEAPONS.IR.count;
-    this.ammo.RADAR = WEAPONS.RADAR.count;
+    this.ammo.IR = this.frame.ammo.IR;
+    this.ammo.RADAR = this.frame.ammo.RADAR;
     this.weapon = 'IR';
-    this.flares = CFG.flare.count;
+    this.flares = this.frame.flares;
     this.flareCooldown = 0;
-    this.chaff = CFG.chaff.count;
+    this.chaff = this.frame.chaff;
     this.chaffCooldown = 0;
     this.burnerFuel = 1;
     this.burnerActive = false;

@@ -1,4 +1,7 @@
-import { CFG, DifficultyId, DIFFICULTIES, DIFFICULTY_ORDER, GAME_NAME, MODE_NAME } from '../core/config';
+import {
+  AirframeId, AIRFRAMES, AIRFRAME_ORDER, CFG, DifficultyId, DIFFICULTIES,
+  DIFFICULTY_ORDER, GAME_NAME, MODE_NAME,
+} from '../core/config';
 import { MatchResult } from '../core/game';
 import { Settings } from '../core/settings';
 import { ACTIONS, ActionId, keyLabel } from '../core/bindings';
@@ -28,7 +31,7 @@ type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted'
   | 'sens-' | 'sens+' | 'vol-' | 'vol+' | 'reset' | `bind:${ActionId}`;
 
 type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back'
-  | `map:${MapId}` | `diff:${DifficultyId}`;
+  | `map:${MapId}` | `diff:${DifficultyId}` | `frame:${AirframeId}`;
 
 export class Overlay {
   private el: HTMLElement;
@@ -99,6 +102,10 @@ export class Overlay {
     }
     if (a.startsWith('diff:')) {
       this.settings.setDifficulty(a.slice(5) as DifficultyId);
+      return;
+    }
+    if (a.startsWith('frame:')) {
+      this.settings.setAirframe(a.slice(6) as AirframeId);
       return;
     }
     switch (a) {
@@ -273,6 +280,15 @@ export class Overlay {
       <div class="rule"></div>
 
       ${paused ? '' : `
+        <div class="seg">
+          <span class="seg-label">Airframe</span>
+          <div class="seg-opts">
+            ${AIRFRAME_ORDER.map((id) => `
+              <button class="seg-opt${this.settings.data.airframe === id ? ' on' : ''}"
+                      data-act="frame:${id}">${AIRFRAMES[id].name}</button>`).join('')}
+          </div>
+          <span class="seg-note">${AIRFRAMES[this.settings.data.airframe].role}</span>
+        </div>
         <div class="seg">
           <span class="seg-label">Bandit skill</span>
           <div class="seg-opts">

@@ -192,6 +192,29 @@ The scroll wheel steps the radar through 2 / 4 / 6 / 10 / 16 km. The display sit
 the top-right corner with the current range printed under it, and the kill feed runs
 below it.
 
+## Airframes
+
+Three, picked on the title screen, with an honest triangle between them rather than
+one being strictly better:
+
+| | **F-16** | **FA-9** | **F-22** |
+| --- | --- | --- | --- |
+| Role | Knife-fighter | All-rounder | Interceptor |
+| Top speed / burner | 306 / 392 | 320 / 409 | 358 / 458 m/s |
+| Pitch · roll rate | 84 · 209 | 72 · 175 | 64 · 150 °/s |
+| Hull | 86 | 100 | 114 |
+| Burner endurance | 3.2 s | 4.0 s | 4.9 s |
+| Heat-seekers · radar | 8 · 2 | 6 · 4 | 4 · 6 |
+| Flares · chaff | 40 · 16 | 32 · 24 | 24 · 32 |
+
+The F-16 out-turns everything and carries the heat-seekers and flares to fight up
+close; the F-22 outruns and out-ranges everything on a radar-heavy load; the FA-9
+sits between with no weakness and no edge. Each has a distinct silhouette — the F-16
+is short-span with a single fin, the F-22 the largest with twin fins.
+
+Measured over four matches with the AI flying all three, and excluding the player:
+K/D lands at 1.06, 1.25 and 1.21 respectively, so the triangle holds.
+
 ## Difficulty
 
 Three settings on the title screen, changing how dangerous bandits are **to you**
@@ -379,6 +402,7 @@ flies into a hill.
 ## Built so far
 
 - [x] Vite + TypeScript + Three.js scaffold
+- [x] Three airframes with distinct flight models, loadouts and silhouettes
 - [x] Two maps — day islands with a fly-through hollow volcano, and a night river
       city with a flyable-under bridge — switchable from the title screen
 - [x] AI terrain lookahead, so it pulls up for steep ground ahead of it rather than
