@@ -66,10 +66,13 @@ bundle is an ES module, so it needs to be served over http(s).
 | Fly (pitch & bank) | **Mouse** | — |
 | Cannon | Left click / `Space` | yes |
 | Missile (needs lock) | Right click / `R` | yes |
+| Swap missile type | `Q` | yes |
+| Free look (hold) | `Shift` | yes |
+| Radar zoom | Scroll wheel | — |
 | Afterburner | `W` | yes |
 | Brake | `S` | yes |
 | Flares | `F` | yes |
-| Rudder | `Q` / `E` | yes |
+| Rudder | `A` / `D` | yes |
 | Camera (chase / cockpit) | `C` | yes |
 | Scoreboard | Hold `Tab` | — |
 | Pause | `Esc` | — |
@@ -126,6 +129,40 @@ so it survives a reload:
 
 Pausing with `Esc` also offers **Leave match**, which drops you back to the title
 screen; `ENTER BATTLE` there starts a completely fresh match with re-rolled AI pilots.
+
+## Missiles
+
+Two types, swapped with `Q`, with an honest trade rather than one being strictly
+better:
+
+| | **IR** — AIM-9 | **Radar** — AIM-120 |
+| --- | --- | --- |
+| Rounds | 6 | 4 |
+| Lock cone / range | 22° / 4.5 km | 38° / 9 km |
+| Lock time | 1.5 s | 2.6 s |
+| Seeker turn rate | 2.5 rad/s | 1.35 rad/s |
+| Flares | **spoof it** (~30%) | **no effect** |
+
+The heat-seeker is quick to lock and agile enough to follow a hard turn, but flares
+beat it. The radar missile reaches twice as far, locks over a much wider cone and
+ignores flares entirely — flares are an infrared countermeasure — but its seeker is
+sluggish, so a hard break turn inside its turn radius will defeat it. Swapping
+restarts the lock, since the two seekers have different cones and dwell times.
+
+The AI picks by range too, so expect radar shots coming at you from distance that
+your flares will do nothing about.
+
+## Free look
+
+Hold `Shift` and the mouse swings the camera around the aircraft instead of flying
+it — useful for checking your six mid-turn. The flight path is completely
+unaffected: the look is applied to the camera offset, not the aircraft, and the
+stick holds its position while you look. Releasing eases the view back.
+
+## Radar zoom
+
+The scroll wheel steps the radar through 2 / 4 / 6 / 10 / 16 km. The current range
+is printed under the display.
 
 ## Rearm rings
 

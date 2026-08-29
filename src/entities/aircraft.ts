@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, TeamId, TEAM } from '../core/config';
+import { CFG, TeamId, TEAM, WeaponId, WeaponSpec, WEAPONS, WEAPON_ORDER } from '../core/config';
 import { clamp, clamp01, damp, lerp, rand } from '../core/mathx';
 import { buildJet, JetVisual } from './jetMesh';
 
@@ -57,7 +57,9 @@ export class Aircraft {
   /** true once the cannon has cooked off; blocks fire until heat drops below heatResume */
   gunOverheated = false;
 
-  missiles: number = CFG.missile.count;
+  /** rounds remaining per missile type */
+  ammo: Record<WeaponId, number> = { IR: WEAPONS.IR.count, RADAR: WEAPONS.RADAR.count };
+  weapon: WeaponId = 'IR';
   missileCooldown = 0;
 
   flares: number = CFG.flare.count;
@@ -119,6 +121,30 @@ export class Aircraft {
   get pitchAngle(): number { return Math.asin(clamp(this.forward().y, -1, 1)); }
 
   get burner(): boolean { return this.burnerActive; }
+
+  /** the selected missile's numbers — lock cone, range, reload and so on */
+  get weaponSpec(): WeaponSpec { return WEAPONS[this.weapon]; }
+  get missiles(): number { return this.ammo[this.weapon]; }
+
+  /** Cycle to the next type that still has rounds; falls back to the next in order. */
+  cycleWeapon(): WeaponId {
+    const i = WEAPON_ORDER.indexOf(this.weapon);
+    for (let n = 1; n <= WEAPON_ORDER.length; n++) {
+      const next = WEAPON_ORDER[(i + n) % WEAPON_ORDER.length];
+      if (this.ammo[next] > 0) { this.setWeapon(next); return next; }
+    }
+    this.setWeapon(WEAPON_ORDER[(i + 1) % WEAPON_ORDER.length]);
+    return this.weapon;
+  }
+
+  setWeapon(w: WeaponId) {
+    if (this.weapon === w) return;
+    this.weapon = w;
+    // the seekers have different cones and dwell times, so a swap restarts the lock
+    this.lockTarget = null;
+    this.lockProgress = 0;
+    this.locked = false;
+  }
 
   /** Control effectiveness falls off when slow (mushy) and very fast (stiff). */
   private authority(): number {
@@ -285,7 +311,8 @@ export class Aircraft {
   /** Top everything back up — what flying through a rearm ring gives you. */
   restock() {
     this.hp = CFG.hull.hp;
-    this.missiles = CFG.missile.count;
+    this.ammo.IR = WEAPONS.IR.count;
+    this.ammo.RADAR = WEAPONS.RADAR.count;
     this.flares = CFG.flare.count;
     this.burnerFuel = 1;
     this.gunHeat = 0;
@@ -331,7 +358,9 @@ export class Aircraft {
     this.speed = CFG.flight.speedCruise + 40;
     this.hp = CFG.hull.hp;
     this.alive = true;
-    this.missiles = CFG.missile.count;
+    this.ammo.IR = WEAPONS.IR.count;
+    this.ammo.RADAR = WEAPONS.RADAR.count;
+    this.weapon = 'IR';
     this.flares = CFG.flare.count;
     this.flareCooldown = 0;
     this.burnerFuel = 1;

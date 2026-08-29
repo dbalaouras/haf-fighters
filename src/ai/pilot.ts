@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG } from '../core/config';
+import { CFG, WEAPONS } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
 import { Terrain } from '../world/terrain';
 import { WaypointSystem } from '../world/waypoints';
@@ -84,7 +84,7 @@ export class Pilot {
       this.flareTimer = CFG.ai.flareReaction * (1.6 - this.skill);
     } else if (this.state === 'REARM') {
       // a ring restocks in one pass, so this ends the moment it works
-      const done = jet.hp >= CFG.hull.hp && jet.missiles >= CFG.missile.count;
+      const done = jet.hp >= CFG.hull.hp && jet.ammo.IR >= WEAPONS.IR.count;
       if (done || this.stateTimer <= 0) this.state = 'PURSUE';
     } else if (this.stateTimer <= 0 && (this.state === 'EVADE' || this.state === 'EXTEND'
         || this.state === 'RECOVER' || this.state === 'DESCEND')) {
@@ -186,6 +186,16 @@ export class Pilot {
       case 'PURSUE': {
         c.throttle = 1;
         c.burner = true;
+        // Beyond-visual-range shot while closing: the radar missile is the only one
+        // with the legs for it, and taking these makes flares feel less like a
+        // universal answer from the receiving end.
+        if (tgt && jet.ammo.RADAR > 0 && dist < WEAPONS.RADAR.lockRange && dist > CFG.ai.radarMinRange) {
+          const off = jet.forward(_tmp).angleTo(_to.copy(tgt.pos).sub(jet.pos).normalize());
+          if (off < CFG.ai.radarMissileCone) {
+            jet.setWeapon('RADAR');
+            c.missile = true;
+          }
+        }
         if (tgt) {
           _to.copy(tgt.pos).sub(jet.pos);
           const tHit = _to.length() / Math.max(1, jet.speed);
@@ -223,8 +233,16 @@ export class Pilot {
           c.gun = this.trigger > 0.12;
         }
 
-        // missiles: the Game gates the actual launch on lock progress
-        if (dist > 600 && dist < CFG.missile.lockRange && angleOff < CFG.ai.missileCone && jet.missiles > 0) {
+        // Pick the missile that suits the range before asking to shoot: radar for
+        // the long shot, heat-seeker in the knife fight. The Game still gates the
+        // launch on a completed lock.
+        const wantRadar = dist > CFG.ai.radarMinRange && jet.ammo.RADAR > 0;
+        if (wantRadar) jet.setWeapon('RADAR');
+        else if (jet.ammo.IR > 0) jet.setWeapon('IR');
+
+        const spec = jet.weaponSpec;
+        const cone = spec.id === 'RADAR' ? CFG.ai.radarMissileCone : CFG.ai.missileCone;
+        if (dist > 600 && dist < spec.lockRange && angleOff < cone && jet.missiles > 0) {
           c.missile = true;
         }
         break;

@@ -11,6 +11,7 @@ const FIXED: ReadonlyArray<[string, string]> = [
   ['Cannon', 'Left click'],
   ['Missile', 'Right click'],
   ['Scoreboard', 'Hold Tab'],
+  ['Radar zoom', 'Scroll'],
   ['Pause', 'Esc'],
 ];
 
@@ -238,10 +239,12 @@ export class Overlay {
       ['Mouse', 'fly'],
       ['Click', 'guns'],
       ['R-click', 'missile'],
+      [k('swapWeapon'), 'swap'],
       [k('afterburner'), 'burner'],
       [k('brake'), 'brake'],
       [k('flares'), 'flares'],
-      ['Tab', 'scores'],
+      [k('freeLook'), 'look'],
+      ['Scroll', 'radar'],
     ];
 
     this.el.innerHTML = `<div class="panel title-panel">

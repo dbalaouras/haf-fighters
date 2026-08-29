@@ -6,9 +6,21 @@ import { ActionId } from './bindings';
 export interface Sample {
   pitch: number; roll: number; yaw: number; throttle: number;
   burner: boolean; gun: boolean; missile: boolean; flares: boolean;
+  /** look-around offsets in radians, non-zero only while free look is held */
+  freeLook: boolean; lookYaw: number; lookPitch: number;
 }
 
+/** radar ranges the scroll wheel steps through, in metres */
+export const RADAR_RANGES = [2000, 4000, 6000, 10000, 16000] as const;
+
 const DEAD = 0.12;
+
+/** left/right variants of the same modifier, so binding one accepts either */
+const TWINS: Record<string, string> = {
+  ShiftLeft: 'ShiftRight', ShiftRight: 'ShiftLeft',
+  ControlLeft: 'ControlRight', ControlRight: 'ControlLeft',
+  AltLeft: 'AltRight', AltRight: 'AltLeft',
+};
 const dz = (v: number) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
 
 /**
@@ -26,6 +38,9 @@ export class Input {
   lockAvailable = true;
 
   private pendingCameraToggle = false;
+  private pendingWeaponSwap = false;
+  private look = { yaw: 0, pitch: 0 };
+  private radarStep = 2;
   private absMouse: { x: number; y: number } | null = null;
   private onLockChange?: (locked: boolean) => void;
   onEscape?: () => void;
@@ -40,6 +55,7 @@ export class Input {
     addEventListener('mousemove', this.mMove);
     addEventListener('blur', () => this.clearKeys());
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('wheel', this.onWheel, { passive: false });
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === this.canvas;
       if (!this.pointerLocked) this.mouseDown.clear();
@@ -62,12 +78,18 @@ export class Input {
   clearKeys() {
     this.keys.clear();
     this.mouseDown.clear();
+    this.look.yaw = 0;
+    this.look.pitch = 0;
     this.onScoreboard?.(false);
   }
 
   private bound(action: ActionId): boolean {
     const code = this.settings.key(action);
-    return !!code && this.keys.has(code);
+    if (!code) return false;
+    if (this.keys.has(code)) return true;
+    // treat the two shifts (and the two ctrls/alts) as the same key when bound
+    const twin = TWINS[code];
+    return !!twin && this.keys.has(twin);
   }
 
   private isBoundToAnything(code: string): boolean {
@@ -89,6 +111,7 @@ export class Input {
     this.keys.add(e.code);
 
     if (e.code === this.settings.key('camera')) this.pendingCameraToggle = true;
+    if (e.code === this.settings.key('swapWeapon')) this.pendingWeaponSwap = true;
 
     // fixed shortcuts, skipped when the player has rebound that key to an action
     if (this.isBoundToAnything(e.code)) return;
@@ -108,6 +131,13 @@ export class Input {
   private mUp = (e: MouseEvent) => { this.mouseDown.delete(e.button); };
 
   private mMove = (e: MouseEvent) => {
+    if (this.bound('freeLook')) {
+      // looking around must not also fly the aircraft
+      const gain = this.settings.mouseGain * 1.6;
+      this.look.yaw = clamp(this.look.yaw - e.movementX * gain, -Math.PI * 0.85, Math.PI * 0.85);
+      this.look.pitch = clamp(this.look.pitch - e.movementY * gain, -1.1, 1.1);
+      return;
+    }
     if (this.pointerLocked) {
       const gain = this.settings.mouseGain;
       this.stick.x = clamp(this.stick.x + e.movementX * gain, -1, 1);
@@ -117,14 +147,38 @@ export class Input {
     }
   };
 
+  private onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const dir = Math.sign(e.deltaY);
+    if (dir === 0) return;
+    this.radarStep = clamp(this.radarStep + dir, 0, RADAR_RANGES.length - 1);
+  };
+
+  get radarRange(): number { return RADAR_RANGES[this.radarStep]; }
+
   consumeCameraToggle(): boolean {
     const v = this.pendingCameraToggle;
     this.pendingCameraToggle = false;
     return v;
   }
 
+  consumeWeaponSwap(): boolean {
+    const v = this.pendingWeaponSwap;
+    this.pendingWeaponSwap = false;
+    return v;
+  }
+
   sample(dt: number): Sample {
-    if (this.pointerLocked || !this.absMouse) {
+    const freeLook = this.bound('freeLook');
+    if (!freeLook) {
+      // recentre the view when the key is let go
+      this.look.yaw = damp(this.look.yaw, 0, 7, dt);
+      this.look.pitch = damp(this.look.pitch, 0, 7, dt);
+    }
+
+    if (freeLook) {
+      // hold the stick where it is rather than letting it drift while looking
+    } else if (this.pointerLocked || !this.absMouse) {
       // the locked stick eases back to centre so you can let go and fly straight
       this.stick.x = damp(this.stick.x, 0, 1.1, dt);
       this.stick.y = damp(this.stick.y, 0, 1.1, dt);
@@ -175,6 +229,7 @@ export class Input {
       yaw: clamp(yaw, -1, 1),
       throttle: this.throttle,
       burner, gun, missile, flares,
+      freeLook, lookYaw: this.look.yaw, lookPitch: this.look.pitch,
     };
   }
 }

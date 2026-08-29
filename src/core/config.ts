@@ -65,20 +65,11 @@ export const CFG = {
     hitRadius: 9,
   },
 
+  /** Shared missile behaviour; the per-type numbers live in WEAPONS below. */
   missile: {
-    count: 6,
-    reload: 6.0,
-    damage: 55,
-    speed: 300,
-    maxSpeed: 780,
-    accel: 320,
-    turnRate: 2.5,        // rad/s seeker authority
-    life: 12,
-    proximity: 16,
-    lockAngle: 22 * Math.PI / 180,
-    lockRange: 4500,
-    lockTime: 1.5,
-    blastRadius: 45,
+    blastFalloffFloor: 0.25,
+    /** HUD pip strip width, so labels can sit clear of it */
+    pipWidth: 84,
   },
 
   /** Scoreboard points. Damage also scores, so support work is visible. */
@@ -128,6 +119,8 @@ export const CFG = {
     gunRange: 1100,
     gunCone: 9 * Math.PI / 180,
     missileCone: 14 * Math.PI / 180,
+    radarMissileCone: 26 * Math.PI / 180,
+    radarMinRange: 1800,   // beyond this the AI reaches for the radar missile
     engageRange: 3200,
     breakRange: 260,
     minAltitude: 320,
@@ -172,5 +165,57 @@ export const TEAM = {
   BLUE: { id: 'BLUE' as TeamId, color: 0x4aa8ff, css: '#5ab6ff', spawn: { x: -2700, z: 2200, heading: -0.68 } },
   RED: { id: 'RED' as TeamId, color: 0xff5c4a, css: '#ff7a66', spawn: { x: 2700, z: -2200, heading: Math.PI - 0.68 } },
 } as const;
+
+export type WeaponId = 'IR' | 'RADAR';
+
+export interface WeaponSpec {
+  id: WeaponId;
+  label: string;
+  /** short tag for the HUD */
+  tag: string;
+  count: number;
+  reload: number;
+  damage: number;
+  speed: number;
+  maxSpeed: number;
+  accel: number;
+  /** seeker authority, rad/s — this is what decides whether it can follow a hard turn */
+  turnRate: number;
+  life: number;
+  proximity: number;
+  blastRadius: number;
+  lockAngle: number;
+  lockRange: number;
+  lockTime: number;
+  /** whether flares can spoof it — flares are an infrared countermeasure */
+  flareVulnerable: boolean;
+}
+
+/**
+ * Two missiles with an honest trade rather than one strictly better than the other:
+ * the heat-seeker is agile and quick to lock but flares beat it, while the radar
+ * missile reaches much further, locks over a wide cone and ignores flares — but its
+ * seeker is sluggish, so a hard break turn inside its turn radius defeats it.
+ */
+export const WEAPONS: Record<WeaponId, WeaponSpec> = {
+  IR: {
+    id: 'IR', label: 'AIM-9 HEAT', tag: 'IR',
+    count: 6, reload: 6,
+    damage: 55, speed: 300, maxSpeed: 780, accel: 320, turnRate: 2.5,
+    life: 12, proximity: 16, blastRadius: 45,
+    lockAngle: 22 * Math.PI / 180, lockRange: 4500, lockTime: 1.5,
+    flareVulnerable: true,
+  },
+  RADAR: {
+    id: 'RADAR', label: 'AIM-120 RADAR', tag: 'RDR',
+    count: 4, reload: 8.5,
+    damage: 62, speed: 340, maxSpeed: 1020, accel: 430, turnRate: 1.35,
+    life: 17, proximity: 20, blastRadius: 55,
+    lockAngle: 38 * Math.PI / 180, lockRange: 9000, lockTime: 2.6,
+    flareVulnerable: false,
+  },
+};
+
+export const WEAPON_ORDER: readonly WeaponId[] = ['IR', 'RADAR'];
 
 export const other = (t: TeamId): TeamId => (t === 'BLUE' ? 'RED' : 'BLUE');

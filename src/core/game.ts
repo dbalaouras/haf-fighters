@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, TEAM, TeamId, other } from './config';
+import { CFG, TEAM, TeamId, WEAPONS, other } from './config';
 import { clamp, clamp01, damp, lerp, rand } from './mathx';
 import { Input } from './input';
 import { Terrain } from '../world/terrain';
@@ -14,6 +14,9 @@ import { FlareSystem } from '../combat/flares';
 import { Hud, FeedLine } from '../ui/hud';
 import { Sound } from '../audio/sound';
 import { Settings } from './settings';
+
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const _tmpQ = new THREE.Quaternion();
 
 const CALLSIGNS: Record<TeamId, readonly string[]> = {
   BLUE: ['VIPER', 'HAWK', 'RAZOR', 'ECHO', 'SABRE'],
@@ -62,6 +65,11 @@ export class Game {
    *  smoothing an absolute target lags by speed/stiffness, which at 300 m/s is 45 m */
   private camOffset = new THREE.Vector3();
   private lookOffset = new THREE.Vector3();
+  private lookYaw = 0;
+  private lookPitch = 0;
+  private freeLook = false;
+  private _lookQ = new THREE.Quaternion();
+  private _lookAxis = new THREE.Vector3();
   private fps = 60;
   private last = 0;
   private raf = 0;
@@ -199,6 +207,13 @@ export class Game {
     // --- player controls ---
     const s = this.input.sample(dt);
     if (this.input.consumeCameraToggle()) this.cameraMode = this.cameraMode === 'chase' ? 'cockpit' : 'chase';
+    if (this.input.consumeWeaponSwap() && this.player.alive) {
+      const w = this.player.cycleWeapon();
+      this.pushFeed(`${WEAPONS[w].label}`, this.player.team, 1.4);
+    }
+    this.lookYaw = s.lookYaw;
+    this.lookPitch = s.lookPitch;
+    this.freeLook = s.freeLook;
     const pc = this.player.controls;
     if (this.player.alive) {
       pc.pitch = s.pitch; pc.roll = s.roll; pc.yaw = s.yaw;
@@ -259,7 +274,7 @@ export class Game {
   /* ---------------- combat pipeline ---------------- */
 
   private updateLock(a: Aircraft, dt: number) {
-    const M = CFG.missile;
+    const M = a.weaponSpec;
     let best: Aircraft | null = null;
     let bestAngle = Infinity;
 
@@ -288,7 +303,9 @@ export class Game {
     a.lockProgress = clamp01(a.lockProgress + dt / M.lockTime);
     const wasLocked = a.locked;
     a.locked = a.lockProgress >= 1;
-    if (a.locked && !wasLocked && a.isPlayer) this.pushFeed(`LOCK — ${best.name}`, null, 1.6);
+    if (a.locked && !wasLocked && a.isPlayer) {
+      this.pushFeed(`${a.weaponSpec.tag} LOCK — ${best.name}`, null, 1.6);
+    }
   }
 
   private handleWeapons(a: Aircraft, dt: number) {
@@ -322,11 +339,16 @@ export class Game {
 
     // missiles need a completed lock
     if (c.missile && a.missiles > 0 && a.missileCooldown <= 0 && a.locked && a.lockTarget) {
-      a.missiles--;
-      a.missileCooldown = CFG.missile.reload;
+      const spec = a.weaponSpec;
+      a.ammo[a.weapon]--;
+      a.missileCooldown = spec.reload;
       this.missiles.fire(a, a.lockTarget);
       this.audio.missileLaunch(a.pos);
-      if (a.isPlayer) this.pushFeed(`FOX 2 — ${a.lockTarget.name}`, a.team, 2.2);
+      if (a.isPlayer) {
+        // FOX 2 is the infrared call, FOX 3 the active-radar one
+        const call = spec.id === 'RADAR' ? 'FOX 3' : 'FOX 2';
+        this.pushFeed(`${call} — ${a.lockTarget.name}`, a.team, 2.2);
+      }
       c.missile = false;
     }
     void dt;
@@ -440,6 +462,19 @@ export class Game {
         this.camLook.lerp(p.pos, 1 - Math.exp(-4 * dt));
       }
 
+      // Free look swings the camera around the jet while it keeps flying itself.
+      // Applied to the offset rather than the aircraft, so the flight path is
+      // completely unaffected by where the pilot happens to be looking.
+      const looking = Math.abs(this.lookYaw) > 1e-3 || Math.abs(this.lookPitch) > 1e-3;
+      if (looking && p.alive) {
+        this._lookQ.setFromAxisAngle(WORLD_UP, this.lookYaw);
+        this._lookAxis.crossVectors(this.camOffset, WORLD_UP).normalize();
+        this._lookQ.multiply(_tmpQ.setFromAxisAngle(this._lookAxis, this.lookPitch));
+        const off = this._w.copy(this.camOffset).applyQuaternion(this._lookQ);
+        this.camPos.copy(p.pos).add(off);
+        this.camLook.copy(p.pos);
+      }
+
       // never let the camera sink into the ground
       const floor = Math.max(6, this.terrain.height(this.camPos.x, this.camPos.z) + 14);
       if (this.camPos.y < floor) this.camPos.y = floor;
@@ -498,6 +533,8 @@ export class Game {
       invertPitch: this.input.invertPitch,
       waypoints: this.waypoints.points,
       rearmFlash: this.rearmFlash,
+      radarRange: this.input.radarRange,
+      freeLook: this.freeLook,
       muted: this.settings.effectiveVolume <= 0,
     };
   }

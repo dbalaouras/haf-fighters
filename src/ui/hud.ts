@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, TEAM, TeamId } from '../core/config';
+import { CFG, TEAM, TeamId, WEAPONS, WEAPON_ORDER } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
 import { Waypoint } from '../world/waypoints';
 import { clamp01, fmtTime, lerp } from '../core/mathx';
@@ -23,6 +23,8 @@ export interface HudState {
   muted: boolean;
   waypoints: readonly Waypoint[];
   rearmFlash: number;
+  radarRange: number;
+  freeLook: boolean;
 }
 
 const ACCENT = '#7fe3b0';
@@ -467,6 +469,7 @@ export class Hud {
 
     // control-mode readout, so the current flight model is never a mystery
     const flags = [s.assist ? 'ASSIST' : 'MANUAL'];
+    if (s.freeLook) flags.push('LOOK');
     if (s.invertPitch) flags.push('INV');
     if (s.muted) flags.push('MUTED');
     c.fillStyle = DIM;
@@ -489,18 +492,35 @@ export class Hud {
     c.fillText(p.gunOverheated ? 'OVERHEAT' : `${Math.round(p.gunHeat * 100)}°`, right, this.h - 104);
     c.font = '11px "SF Mono", Menlo, monospace';
 
-    // missiles
-    c.fillStyle = DIM;
-    c.fillText('AIM-9', right, this.h - 80);
-    for (let i = 0; i < CFG.missile.count; i++) {
-      const x = right - (CFG.missile.count - i) * (pipW + gap);
-      c.fillStyle = i < p.missiles ? ACCENT : 'rgba(127,227,176,0.16)';
-      c.fillRect(x, this.h - 70, pipW, 14);
+    // missiles: both types listed, the selected one highlighted
+    let wy = this.h - 84;
+    for (const id of WEAPON_ORDER) {
+      const spec = WEAPONS[id];
+      const rounds = p.ammo[id];
+      const active = p.weapon === id;
+      const col = rounds === 0 ? 'rgba(127,227,176,0.25)' : active ? ACCENT : DIM;
+
+      c.textAlign = 'right';
+      c.fillStyle = col;
+      c.fillText(`${active ? '▸ ' : ''}${spec.tag}`, right - CFG.missile.pipWidth, wy);
+
+      for (let i = 0; i < spec.count; i++) {
+        const x = right - (spec.count - i) * (pipW + gap);
+        c.fillStyle = i < rounds
+          ? (active ? ACCENT : 'rgba(127,227,176,0.4)')
+          : 'rgba(127,227,176,0.14)';
+        c.fillRect(x, wy - 5, pipW, 10);
+      }
+      wy += 20;
     }
+
+    // reload bar for whichever type is selected
     if (p.missileCooldown > 0 && p.missiles > 0) {
-      const t = 1 - clamp01(p.missileCooldown / CFG.missile.reload);
+      const spec = p.weaponSpec;
+      const t = 1 - clamp01(p.missileCooldown / spec.reload);
+      const w = spec.count * (pipW + gap);
       c.fillStyle = '#ffd166';
-      c.fillRect(right - CFG.missile.count * (pipW + gap), this.h - 52, CFG.missile.count * (pipW + gap) * t, 2.5);
+      c.fillRect(right - w, wy - 2, w * t, 2.5);
     }
 
     // flares, counted in salvos since that is how they are dispensed
@@ -509,11 +529,11 @@ export class Hud {
     const ready = p.flareCooldown <= 0 && salvos > 0;
     c.fillStyle = ready ? DIM : 'rgba(127,227,176,0.22)';
     c.textAlign = 'right';
-    c.fillText('FLARES', right, this.h - 34);
+    c.fillText('FLARES', right - CFG.missile.pipWidth, this.h - 30);
     for (let i = 0; i < maxSalvos; i++) {
       const x = right - (maxSalvos - i) * (pipW + gap);
       c.fillStyle = i < salvos ? (ready ? '#ffd166' : 'rgba(255,209,102,0.32)') : 'rgba(255,209,102,0.14)';
-      c.fillRect(x, this.h - 24, pipW, 12);
+      c.fillRect(x, this.h - 22, pipW, 11);
     }
   }
 
@@ -524,7 +544,7 @@ export class Hud {
     const p = s.player;
     const r = 74;
     const cx = this.w / 2, cy = this.h - r - 30;
-    const range = 6000;
+    const range = s.radarRange;
 
     c.fillStyle = 'rgba(6, 18, 24, 0.5)';
     c.beginPath();
@@ -594,7 +614,7 @@ export class Hud {
 
     c.fillStyle = DIM;
     c.textAlign = 'center';
-    c.fillText(`${(range / 1000).toFixed(0)} KM`, cx, cy + r + 12);
+    c.fillText(`${(range / 1000).toFixed(0)} KM  ⌃⌄`, cx, cy + r + 12);
   }
 
   /* ---------------- match info ---------------- */

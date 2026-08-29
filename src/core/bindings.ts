@@ -2,8 +2,8 @@
 export type ActionId =
   | 'afterburner' | 'brake'
   | 'rudderLeft' | 'rudderRight'
-  | 'fireGun' | 'fireMissile' | 'flares'
-  | 'camera';
+  | 'fireGun' | 'fireMissile' | 'swapWeapon' | 'flares'
+  | 'freeLook' | 'camera';
 
 export interface ActionDef {
   id: ActionId;
@@ -14,11 +14,14 @@ export interface ActionDef {
 export const ACTIONS: readonly ActionDef[] = [
   { id: 'afterburner', label: 'Afterburner', default: 'KeyW' },
   { id: 'brake', label: 'Brake', default: 'KeyS' },
-  { id: 'rudderLeft', label: 'Rudder left', default: 'KeyQ' },
-  { id: 'rudderRight', label: 'Rudder right', default: 'KeyE' },
+  // flight is mouse-only, so A/D are free for the rudder and Q can take the swap
+  { id: 'rudderLeft', label: 'Rudder left', default: 'KeyA' },
+  { id: 'rudderRight', label: 'Rudder right', default: 'KeyD' },
   { id: 'fireGun', label: 'Cannon', default: 'Space' },
   { id: 'fireMissile', label: 'Missile', default: 'KeyR' },
+  { id: 'swapWeapon', label: 'Swap missile', default: 'KeyQ' },
   { id: 'flares', label: 'Flares', default: 'KeyF' },
+  { id: 'freeLook', label: 'Free look (hold)', default: 'ShiftLeft' },
   { id: 'camera', label: 'Camera', default: 'KeyC' },
 ];
 

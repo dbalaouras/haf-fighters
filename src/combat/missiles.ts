@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CFG, TeamId } from '../core/config';
+import { CFG, TeamId, WeaponSpec, WEAPONS } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
 import { Terrain } from '../world/terrain';
 import { Fx } from './particles';
@@ -15,6 +15,8 @@ interface Missile {
   owner: Aircraft;
   team: TeamId;
   target: Aircraft | null;
+  /** the type this round was launched as — it carries its own performance */
+  spec: WeaponSpec;
   /** set when the seeker has been spoofed; the missile chases this instead */
   decoy: Flare | null;
   /** a seeker gets exactly one chance to be fooled, so flare spam cannot guarantee a save */
@@ -53,7 +55,7 @@ export class MissileSystem {
       this.pool.push({
         alive: false, pos: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1),
         speed: 0, life: 0, owner: null as unknown as Aircraft, team: 'BLUE',
-        target: null, decoy: null, flareTested: false, mesh, trailAccum: 0,
+        target: null, spec: WEAPONS.IR, decoy: null, flareTested: false, mesh, trailAccum: 0,
       });
     }
   }
@@ -61,14 +63,19 @@ export class MissileSystem {
   get liveCount(): number { return this.pool.reduce((n, m) => n + (m.alive ? 1 : 0), 0); }
 
   fire(owner: Aircraft, target: Aircraft | null) {
+    const spec = owner.weaponSpec;
     const m = this.pool[this.cursor];
     this.cursor = (this.cursor + 1) % this.max;
     m.alive = true;
     m.pos.copy(owner.pos).addScaledVector(owner.right(this._v), owner.missiles % 2 === 0 ? 3.4 : -3.4);
     m.pos.addScaledVector(owner.up(this._v), -0.6);
     m.dir.copy(owner.forward(this._v));
-    m.speed = Math.max(CFG.missile.speed, owner.speed + 60);
-    m.life = CFG.missile.life;
+    m.spec = spec;
+    m.speed = Math.max(spec.speed, owner.speed + 60);
+    m.life = spec.life;
+    // radar rounds are visibly bigger and burn brighter
+    const scale = spec.id === 'RADAR' ? 1.35 : 1;
+    m.mesh.scale.set(scale, scale, scale);
     m.owner = owner;
     m.team = owner.team;
     m.target = target;
@@ -88,6 +95,7 @@ export class MissileSystem {
     const F = CFG.flare;
     for (const m of this.pool) {
       if (!m.alive || m.decoy || m.flareTested || m.target !== deployer) continue;
+      if (!m.spec.flareVulnerable) continue;   // flares are an infrared decoy
 
       const dist = m.pos.distanceTo(deployer.pos);
       if (dist > F.decoyRange) continue;
@@ -122,20 +130,18 @@ export class MissileSystem {
     onHit: (hit: MissileHit) => void,
     onDetonate?: (at: THREE.Vector3) => void,
   ) {
-    const M = CFG.missile;
-
     for (const m of this.pool) {
       if (!m.alive) continue;
 
       m.life -= dt;
-      m.speed = Math.min(M.maxSpeed, m.speed + M.accel * dt);
+      m.speed = Math.min(m.spec.maxSpeed, m.speed + m.spec.accel * dt);
 
       // guidance
       const tgt = m.target;
       if (m.decoy) {
         if (m.decoy.alive) {
           const toF = this._v.copy(m.decoy.pos).sub(m.pos);
-          if (toF.length() < M.proximity + 6) {
+          if (toF.length() < m.spec.proximity + 6) {
             this.detonate(m, aircraft, fx, onHit, onDetonate);
             continue;
           }
@@ -178,7 +184,7 @@ export class MissileSystem {
       let detonated = false;
       for (const a of aircraft) {
         if (!a.alive || a.team === m.team) continue;
-        if (a.pos.distanceTo(m.pos) < M.proximity + CFG.hull.radius) {
+        if (a.pos.distanceTo(m.pos) < m.spec.proximity + CFG.hull.radius) {
           this.detonate(m, aircraft, fx, onHit, onDetonate);
           detonated = true;
           break;
@@ -196,7 +202,7 @@ export class MissileSystem {
   private steerTowards(m: Missile, desired: THREE.Vector3, dt: number) {
     const ang = m.dir.angleTo(desired);
     if (ang < 1e-4) return;
-    const step = Math.min(ang, CFG.missile.turnRate * dt);
+    const step = Math.min(ang, m.spec.turnRate * dt);
     this._axis.crossVectors(m.dir, desired);
     if (this._axis.lengthSq() < 1e-8) this._axis.copy(this._up);
     this._axis.normalize();
@@ -219,9 +225,10 @@ export class MissileSystem {
     for (const a of aircraft) {
       if (!a.alive || a.team === m.team) continue;
       const d = a.pos.distanceTo(m.pos);
-      if (d > CFG.missile.blastRadius) continue;
-      const falloff = clamp(1 - (d - CFG.missile.proximity) / CFG.missile.blastRadius, 0.25, 1);
-      onHit({ victim: a, shooter: m.owner, damage: CFG.missile.damage * falloff });
+      if (d > m.spec.blastRadius) continue;
+      const falloff = clamp(
+        1 - (d - m.spec.proximity) / m.spec.blastRadius, CFG.missile.blastFalloffFloor, 1);
+      onHit({ victim: a, shooter: m.owner, damage: m.spec.damage * falloff });
     }
   }
 
