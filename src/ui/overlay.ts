@@ -3,6 +3,7 @@ import { MatchResult } from '../core/game';
 import { Settings } from '../core/settings';
 import { ACTIONS, ActionId, keyLabel } from '../core/bindings';
 import { MatchInfo, scoreboardHtml } from './scoreboard';
+import { MAX_NAME } from '../core/settings';
 
 /** Fixed, non-rebindable inputs. */
 const FIXED: ReadonlyArray<[string, string]> = [
@@ -76,7 +77,18 @@ export class Overlay {
     settings.onChange(() => { if (!this.el.classList.contains('hidden')) this.render(); });
   }
 
+  /**
+   * Read the callsign field straight out of the DOM at action time rather than
+   * syncing on every keystroke — writing to settings re-renders the panel, which
+   * would blow away the input the user is typing into.
+   */
+  private commitName() {
+    const el = this.el.querySelector('.callsign') as HTMLInputElement | null;
+    if (el) this.settings.setPilotName(el.value);
+  }
+
   private act(a: Act) {
+    this.commitName();
     switch (a) {
       case 'settings': this.view = 'settings'; this.render(); break;
       case 'back': this.view = 'main'; this.capturing = null; this.render(); break;
@@ -227,6 +239,12 @@ export class Overlay {
         ? `<div class="eyebrow">${GAME_NAME}</div><h1>PAUSED</h1>`
         : `<h1 class="game-title">${first} <span>${rest.join(' ')}</span></h1>`}
       <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME} &nbsp;·&nbsp; ${MAP_NAME}</div>
+      ${paused ? '' : `
+        <label class="callsign-row">
+          <span>CALLSIGN</span>
+          <input class="callsign" type="text" maxlength="${MAX_NAME}" spellcheck="false"
+                 autocomplete="off" value="${this.settings.data.pilotName}">
+        </label>`}
       <div class="acts">
         <button class="act primary big" data-act="resume">${paused ? 'RESUME' : 'ENTER BATTLE'}</button>
         ${paused ? '<button class="act" data-act="leave">LEAVE MATCH</button>' : ''}
@@ -245,8 +263,20 @@ export class Overlay {
 
   private render() {
     this.el.classList.remove('hidden');
-    if (this.mode === 'end' && this.lastEnd && this.view === 'main') return this.renderEnd();
-    if (this.view === 'settings') return this.renderSettings();
+    if (this.mode === 'end' && this.lastEnd && this.view === 'main') { this.renderEnd(); return; }
+    if (this.view === 'settings') { this.renderSettings(); return; }
     this.renderTitle();
+    this.wireCallsign();
+  }
+
+  private wireCallsign() {
+    const el = this.el.querySelector('.callsign') as HTMLInputElement | null;
+    if (!el) return;
+    // clicks in the field must not fall through to the backdrop and launch a match
+    el.addEventListener('click', (e) => e.stopPropagation());
+    el.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); this.act('resume'); }
+    });
   }
 }

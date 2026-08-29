@@ -101,18 +101,18 @@ export const CFG = {
     decoyCone: 55 * Math.PI / 180,
   },
 
-  /** Neutral rearm zones both teams share — flying through tops you back up. */
+  /**
+   * Neutral rearm rings both teams share. Fly through the hoop for an instant full
+   * restock; the ring then goes cold for a few seconds, so two jets cannot milk the
+   * same ring back to back and a contested ring is worth timing.
+   */
   resupply: {
     count: 4,
-    ringRadius: 200,      // the visible marker
-    radius: 280,          // the volume that actually resupplies
+    ringRadius: 170,      // the hoop you actually have to fly through
+    tube: 7,
     altitude: 950,
     orbitRadius: 5200,    // how far from the arena centre they sit
-    missileInterval: 1.1, // seconds per missile restored
-    flareInterval: 0.9,   // seconds per flare salvo restored
-    hullPerSec: 14,
-    burnerPerSec: 0.55,
-    heatCoolBonus: 0.7,
+    cooldown: 5,
   },
 
   audio: {

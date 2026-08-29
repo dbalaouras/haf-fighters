@@ -156,6 +156,19 @@
         letter-spacing: .14em; color: #7fe3b0; white-space: nowrap;
       }
       .game-title span { color: #eaf5ff; }
+      .callsign-row {
+        display: flex; align-items: center; justify-content: center; gap: 14px;
+        margin: 22px 0 4px;
+      }
+      .callsign-row span { font-size: 10px; letter-spacing: .28em; color: #5d84a8; }
+      .callsign {
+        font: inherit; font-size: 15px; letter-spacing: .18em; text-align: center;
+        width: 220px; padding: 9px 12px; color: #eaf5ff; background: rgba(6,14,24,.7);
+        border: 1px solid rgba(120,190,255,.3); border-radius: 2px; outline: none;
+      }
+      .callsign:focus { border-color: rgba(127,227,176,.7); background: rgba(8,20,30,.9); }
+      .callsign::placeholder { color: #3f5f80; }
+
       .hint {
         margin-top: 26px; font-size: 11px; letter-spacing: .08em; color: #6f9dc8; line-height: 2;
       }

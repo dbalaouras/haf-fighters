@@ -83,8 +83,8 @@ export class Pilot {
       // better pilots reach for the flare button sooner
       this.flareTimer = CFG.ai.flareReaction * (1.6 - this.skill);
     } else if (this.state === 'REARM') {
-      // stay until topped up, or until the zone stops being worth the trip
-      const done = jet.hp > CFG.hull.hp * 0.85 && jet.missiles >= CFG.missile.count - 1;
+      // a ring restocks in one pass, so this ends the moment it works
+      const done = jet.hp >= CFG.hull.hp && jet.missiles >= CFG.missile.count;
       if (done || this.stateTimer <= 0) this.state = 'PURSUE';
     } else if (this.stateTimer <= 0 && (this.state === 'EVADE' || this.state === 'EXTEND'
         || this.state === 'RECOVER' || this.state === 'DESCEND')) {
@@ -96,8 +96,8 @@ export class Pilot {
       const hurt = jet.hp < CFG.ai.resupplyHp;
       const dry = jet.missiles === 0;
       if (hurt || dry) {
-        const { dist } = waypoints.nearest(jet.pos);
-        if (dist < CFG.ai.resupplyRange) {
+        const target = waypoints.nearestReady(jet.pos);
+        if (target && target.dist < CFG.ai.resupplyRange) {
           this.state = 'REARM';
           this.stateTimer = 22;
         }
@@ -130,23 +130,19 @@ export class Pilot {
       }
 
       case 'REARM': {
-        const { wp, dist } = waypoints.nearest(jet.pos);
+        const target = waypoints.nearestReady(jet.pos);
+        if (!target) { this.state = 'PURSUE'; break; }
+        const { wp, dist } = target;
         c.throttle = 1;
         c.burner = dist > 1800;
-        // aim at the zone from outside, then hold a tight orbit once inside it
-        if (dist > CFG.resupply.radius * 0.7) {
-          _dir.copy(wp.pos).sub(jet.pos);
-          // the zones sit lower than the central massif, so a straight run at one
-          // can fly through a mountain — the usual altitude guard still applies
-          this.limitAltitude(_dir, jet, terrain);
-        } else {
-          _dir.copy(jet.right(_tmp)).multiplyScalar(0.7)
-            .addScaledVector(jet.forward(_l), 1)
-            .addScaledVector(_to.copy(wp.pos).sub(jet.pos).normalize(), 0.55);
-          c.throttle = 0.6;
-          c.burner = false;
-        }
-        this.steer(_dir.normalize(), 0.9);
+        // Fly straight at the centre of the hoop: whatever the approach angle, the
+        // crossing point then lands inside the ring.
+        _dir.copy(wp.pos).sub(jet.pos);
+        // the rings sit lower than the central massif, so a straight run at one can
+        // otherwise fly through a mountain — the usual altitude guard still applies,
+        // but not once we are committed to the gate
+        if (dist > 900) this.limitAltitude(_dir, jet, terrain);
+        this.steer(_dir.normalize(), 1);
         break;
       }
 

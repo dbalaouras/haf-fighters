@@ -74,7 +74,14 @@ export class Input {
     return Object.values(this.settings.data.bindings).includes(code);
   }
 
+  /** typing into a text field is not a game input */
+  private typingInField(e: Event): boolean {
+    const t = e.target as HTMLElement | null;
+    return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  }
+
   private keyDown = (e: KeyboardEvent) => {
+    if (this.typingInField(e)) return;
     if (e.code === 'Tab' || (e.code === 'Space' && this.pointerLocked)) e.preventDefault();
     if (e.repeat) return;
     if (e.code === 'Escape') this.onEscape?.();
@@ -93,6 +100,7 @@ export class Input {
   };
 
   private keyUp = (e: KeyboardEvent) => {
+    if (this.typingInField(e)) return;
     if (e.code === 'Tab') this.onScoreboard?.(false);
     this.keys.delete(e.code);
   };

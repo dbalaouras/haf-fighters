@@ -22,7 +22,7 @@ export interface HudState {
   invertPitch: boolean;
   muted: boolean;
   waypoints: readonly Waypoint[];
-  rearming: boolean;
+  rearmFlash: number;
 }
 
 const ACCENT = '#7fe3b0';
@@ -176,7 +176,7 @@ export class Hud {
     }
   }
 
-  /** Diamond markers over the rearm zones, with range, so they can be found. */
+  /** Ring markers, showing whether each gate is up and how far away it is. */
   private rearmMarkers(s: HudState) {
     const c = this.ctx;
     const p = s.player;
@@ -186,26 +186,27 @@ export class Hud {
       const sp = this.project(wp.pos, s.camera);
       if (!sp) continue;
       const dist = p.pos.distanceTo(wp.pos);
-      const near = dist < 1200;
+      const cooling = wp.cooldown > 0;
+      const near = dist < 1400;
 
-      c.globalAlpha = near ? 0.9 : 0.5;
-      c.strokeStyle = '#7fe3ff';
+      c.globalAlpha = cooling ? 0.4 : near ? 0.9 : 0.55;
+      c.strokeStyle = cooling ? '#ff8a5c' : '#7fe3ff';
       const r = near ? 13 : 9;
+
+      // a circle for a ring, rather than the old diamond
       c.beginPath();
-      c.moveTo(sp.x, sp.y - r);
-      c.lineTo(sp.x + r, sp.y);
-      c.lineTo(sp.x, sp.y + r);
-      c.lineTo(sp.x - r, sp.y);
-      c.closePath();
+      c.arc(sp.x, sp.y, r, 0, Math.PI * 2);
       c.stroke();
       c.beginPath();
-      c.moveTo(sp.x - 4, sp.y); c.lineTo(sp.x + 4, sp.y);
-      c.moveTo(sp.x, sp.y - 4); c.lineTo(sp.x, sp.y + 4);
+      c.arc(sp.x, sp.y, r * 0.42, 0, Math.PI * 2);
       c.stroke();
 
-      c.fillStyle = '#7fe3ff';
+      c.fillStyle = cooling ? '#ff8a5c' : '#7fe3ff';
       c.textAlign = 'center';
-      c.fillText(`REARM ${(dist / 1000).toFixed(1)}km`, sp.x, sp.y + r + 12);
+      c.fillText(
+        cooling ? `${wp.cooldown.toFixed(1)}s` : `REARM ${(dist / 1000).toFixed(1)}km`,
+        sp.x, sp.y + r + 12,
+      );
       c.globalAlpha = 1;
     }
   }
@@ -553,10 +554,9 @@ export class Hud {
       const rel = Math.atan2(dx, -dz) - hdg;
       const x = cx + Math.sin(rel) * k;
       const y = cy - Math.cos(rel) * k;
-      c.strokeStyle = 'rgba(127,227,255,0.7)';
+      c.strokeStyle = wp.cooldown > 0 ? 'rgba(255,138,92,0.5)' : 'rgba(127,227,255,0.8)';
       c.beginPath();
-      c.moveTo(x, y - 3.5); c.lineTo(x + 3.5, y); c.lineTo(x, y + 3.5); c.lineTo(x - 3.5, y);
-      c.closePath();
+      c.arc(x, y, 3.5, 0, Math.PI * 2);
       c.stroke();
     }
 
@@ -670,12 +670,14 @@ export class Hud {
       c.fillText('PULL UP', cx, y);
       y += 18;
     }
-    if (s.rearming && p.alive) {
+    if (s.rearmFlash > 0 && p.alive) {
+      c.globalAlpha = clamp01(s.rearmFlash);
       c.fillStyle = '#7fe3ff';
       c.textAlign = 'center';
-      c.font = '14px "SF Mono", Menlo, monospace';
-      c.fillText('◆ REARMING ◆', cx, y);
+      c.font = '15px "SF Mono", Menlo, monospace';
+      c.fillText('◆ REARMED ◆', cx, y);
       c.font = '11px "SF Mono", Menlo, monospace';
+      c.globalAlpha = 1;
       y += 20;
     }
     if (s.oobSeconds > 0) {

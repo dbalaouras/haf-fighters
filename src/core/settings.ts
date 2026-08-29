@@ -1,7 +1,23 @@
 import { clamp01 } from './mathx';
 import { ActionId, Bindings, defaultBindings } from './bindings';
 
+export const MAX_NAME = 14;
+export const DEFAULT_NAME = 'VIPER';
+
+/** Keep callsigns in the same shape as the AI ones, and safe to render as text. */
+export function sanitizeName(raw: string): string {
+  const cleaned = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9 _-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_NAME);
+  return cleaned || DEFAULT_NAME;
+}
+
 export interface SettingsData {
+  /** the player's callsign, shown on the HUD, scoreboard and kill feed */
+  pilotName: string;
   /** pulling back on the mouse raises the nose when false */
   invertPitch: boolean;
   invertRoll: boolean;
@@ -19,6 +35,7 @@ const KEY = 'haffighters.settings.v1';
 const LEGACY_KEYS = ['harfighters.settings.v1', 'skyclash.settings.v2'];
 
 const DEFAULTS: SettingsData = {
+  pilotName: DEFAULT_NAME,
   invertPitch: false,
   invertRoll: false,
   assist: true,
@@ -58,6 +75,7 @@ export class Settings {
       }
       this.data.sensitivity = clamp01(this.data.sensitivity);
       this.data.volume = clamp01(this.data.volume);
+      this.data.pilotName = sanitizeName(this.data.pilotName);
     } catch {
       // private browsing / blocked storage — defaults are fine
     }
@@ -87,6 +105,10 @@ export class Settings {
 
   nudgeSensitivity(delta: number) {
     this.set('sensitivity', clamp01(this.data.sensitivity + delta));
+  }
+
+  setPilotName(raw: string) {
+    this.set('pilotName', sanitizeName(raw));
   }
 
   nudgeVolume(delta: number) {

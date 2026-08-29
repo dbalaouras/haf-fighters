@@ -52,6 +52,8 @@ export class Game {
 
   private feed: FeedLine[] = [];
   private damageFlash = 0;
+  /** counts down after the player flies a rearm ring, for the HUD banner */
+  private rearmFlash = 0;
   private shake = 0;
   private cameraMode: CameraMode = 'chase';
   private camPos = new THREE.Vector3();
@@ -96,6 +98,8 @@ export class Game {
 
     this.hud = new Hud(hudCanvas);
     this.spawnTeams();
+    this.player.name = settings.data.pilotName;
+    settings.onChange((d) => { this.player.name = d.pilotName; });
 
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
@@ -229,12 +233,20 @@ export class Game {
       (hit) => this.applyDamage(hit.victim, hit.shooter, hit.damage),
       (at) => this.audio.explosion(at, 1));
 
-    this.waypoints.update(dt, this.aircraft);
+    this.waypoints.update(dt, this.aircraft, (a) => {
+      a.restock();
+      this.audio.rearm(a.pos);
+      if (a === this.player) {
+        this.rearmFlash = 1.6;
+        this.pushFeed('REARMED', a.team, 2);
+      }
+    });
     this.flares.update(dt, this.fx);
     this.fx.update(dt);
 
     // --- match state ---
     this.damageFlash = Math.max(0, this.damageFlash - dt * 1.6);
+    this.rearmFlash = Math.max(0, this.rearmFlash - dt);
     this.shake = Math.max(0, this.shake - dt * 2.2);
     for (const f of this.feed) f.t -= dt;
     this.feed = this.feed.filter((f) => f.t > 0);
@@ -485,7 +497,7 @@ export class Game {
       assist: p.assist,
       invertPitch: this.input.invertPitch,
       waypoints: this.waypoints.points,
-      rearming: this.waypoints.isInside(p),
+      rearmFlash: this.rearmFlash,
       muted: this.settings.effectiveVolume <= 0,
     };
   }

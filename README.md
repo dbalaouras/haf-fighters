@@ -107,8 +107,10 @@ Volume and mute are behind the gear.
 
 ## Screens
 
-The game opens on a **title screen** — `ENTER BATTLE` starts a match, and the **gear
-in the corner** opens settings and key bindings. `Esc` mid-match pauses to the same
+The game opens on a **title screen** — set your **callsign**, `ENTER BATTLE` starts a
+match, and the **gear in the corner** opens settings and key bindings. The callsign is
+saved with the rest of your settings and appears on the HUD, the kill feed and the
+scoreboard. `Esc` mid-match pauses to the same
 screen with `RESUME` and `LEAVE MATCH`, and the gear is there too.
 
 ## Settings
@@ -125,19 +127,22 @@ so it survives a reload:
 Pausing with `Esc` also offers **Leave match**, which drops you back to the title
 screen; `ENTER BATTLE` there starts a completely fresh match with re-rolled AI pilots.
 
-## Rearm zones
+## Rearm rings
 
-Four neutral zones ringed with cyan cages hang over the map. Fly into one and it
-tops up **missiles, flares, afterburner fuel and hull**, and cools the cannon —
-faster the closer to the centre, so a lazy pass gives less than an orbit. A few
-seconds inside takes a shot-up jet from 30% hull and no missiles back to fighting
-condition.
+Four neutral rings hang over the map, oriented tangentially so they chain into a
+circuit you can fly. **Fly through the hoop** and everything is restored at once —
+hull, missiles, flares, afterburner fuel, and the cannon's heat. The ring then goes
+**cold for 5 seconds**, turning amber on the HUD and in the world with the remaining
+time shown, before coming back up.
 
-They are shared by both teams and permanently lit, which is the point: loitering in
-a fixed, well-marked volume is exactly as risky as it sounds. Diamonds on the HUD and
-the radar show where they are, and `REARMING` appears while you are inside one.
+You have to actually go through it: the check is whether your path crossed the ring's
+plane *inside* the 170 m hoop between one frame and the next, not merely whether you
+came close. Passing through from either side counts.
 
-The AI uses them too, breaking off when it is below 45% hull or out of missiles.
+Both teams share the rings and the cooldown is per-ring rather than per-pilot, so a
+bandit who just used one has denied it to you for five seconds. The AI uses them too,
+breaking off when it is below 45% hull or out of missiles, and it will only commit to
+a ring that is currently up.
 
 ## Scoreboard
 
@@ -260,7 +265,8 @@ flies into a hill.
 - [x] AI pilots: target assignment across the squadron, gun/missile discipline,
       missile evasion, terrain and ceiling recovery
 - [x] 5v5 match: scoring, kill feed, respawns, out-of-bounds, win/lose screen
-- [x] Neutral rearm zones restoring missiles, flares, burner fuel and hull
+- [x] Neutral fly-through rearm rings: full restock on a pass, 5 s per-ring cooldown
+- [x] Player callsign, set on the title screen and shown on the HUD and scoreboard
 - [x] Hold-Tab scoreboard with kills / deaths / assists / score, shared with the
       end-of-match panel
 - [x] Leave a match mid-fight and start a fresh one from the title screen

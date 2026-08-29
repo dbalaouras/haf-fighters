@@ -415,6 +415,27 @@ export class Sound {
     this.noiseBurst(bp, 0.65, 1);
   }
 
+  /** Flying a rearm ring — a bright two-note confirmation. */
+  rearm(pos: THREE.Vector3) {
+    if (!this.ctx) return;
+    const { gain, pan, dist } = this.place(pos);
+    for (const [freq, delay] of [[880, 0], [1320, 0.09]] as const) {
+      const out = this.out(gain * 0.34, pan, dist, 0.4);
+      if (!out) continue;
+      const t = this.ctx.currentTime + delay;
+      out.gain.cancelScheduledValues(t);
+      out.gain.setValueAtTime(0.0001, t);
+      out.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * 0.34), t + 0.01);
+      out.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+      const o = this.ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = freq;
+      o.connect(out);
+      o.start(t);
+      o.stop(t + 0.36);
+    }
+  }
+
   /** Taking rounds on your own airframe — dry and metallic, not positional. */
   hullHit() {
     if (!this.ctx) return;

@@ -27,7 +27,7 @@ const _q = new THREE.Quaternion();
 
 export class Aircraft {
   readonly team: TeamId;
-  readonly name: string;
+  name: string;
   readonly isPlayer: boolean;
   readonly visual: JetVisual;
   readonly object: THREE.Group;
@@ -280,6 +280,16 @@ export class Aircraft {
       b.scale.set(0.7 + t * 0.5, 0.7 + t * 0.5, Math.max(0.01, len));
       (b.material as THREE.Material).opacity = 0.25 + 0.6 * t + (this.burner ? 0.2 : 0);
     }
+  }
+
+  /** Top everything back up — what flying through a rearm ring gives you. */
+  restock() {
+    this.hp = CFG.hull.hp;
+    this.missiles = CFG.missile.count;
+    this.flares = CFG.flare.count;
+    this.burnerFuel = 1;
+    this.gunHeat = 0;
+    this.gunOverheated = false;
   }
 
   /** @returns true if this hit was lethal */
