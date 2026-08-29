@@ -232,32 +232,50 @@ export class Overlay {
   private renderTitle() {
     const paused = this.mode === 'paused';
     const [first, ...rest] = GAME_NAME.split(' ');
+    const k = (a: Parameters<Settings['key']>[0]) => keyLabel(this.settings.key(a));
+
+    const keys: ReadonlyArray<[string, string]> = [
+      ['Mouse', 'fly'],
+      ['Click', 'guns'],
+      ['R-click', 'missile'],
+      [k('afterburner'), 'burner'],
+      [k('brake'), 'brake'],
+      [k('flares'), 'flares'],
+      ['Tab', 'scores'],
+    ];
 
     this.el.innerHTML = `<div class="panel title-panel">
       ${this.gearButton()}
+
+      <div class="title-block">
+        ${paused
+          ? `<div class="eyebrow">${GAME_NAME}</div><h1>PAUSED</h1>`
+          : `<h1 class="game-title">${first} <span>${rest.join(' ')}</span></h1>`}
+        <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME}</div>
+        <div class="sub dim">${MAP_NAME}</div>
+      </div>
+
+      <div class="rule"></div>
+
       ${paused
-        ? `<div class="eyebrow">${GAME_NAME}</div><h1>PAUSED</h1>`
-        : `<h1 class="game-title">${first} <span>${rest.join(' ')}</span></h1>`}
-      <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME} &nbsp;·&nbsp; ${MAP_NAME}</div>
-      ${paused ? '' : `
-        <label class="callsign-row">
-          <span>CALLSIGN</span>
-          <input class="callsign" type="text" maxlength="${MAX_NAME}" spellcheck="false"
-                 autocomplete="off" value="${this.settings.data.pilotName}">
-        </label>`}
-      <div class="acts">
-        <button class="act primary big" data-act="resume">${paused ? 'RESUME' : 'ENTER BATTLE'}</button>
-        ${paused ? '<button class="act" data-act="leave">LEAVE MATCH</button>' : ''}
+        ? `<div class="launch">
+             <button class="act primary big" data-act="resume">RESUME</button>
+             <button class="act big" data-act="leave">LEAVE MATCH</button>
+           </div>`
+        : `<div class="launch">
+             <label class="field">
+               <span>CALLSIGN</span>
+               <input class="callsign" type="text" maxlength="${MAX_NAME}" spellcheck="false"
+                      autocomplete="off" value="${this.settings.data.pilotName}">
+             </label>
+             <button class="act primary big" data-act="resume">ENTER BATTLE</button>
+           </div>`}
+
+      <div class="keys">
+        ${keys.map(([key, label]) => `<span><b>${key}</b>${label}</span>`).join('')}
       </div>
-      <div class="hint">
-        <b>Mouse</b> flies &nbsp;·&nbsp; <b>${keyLabel(this.settings.key('afterburner'))}</b> burner
-        &nbsp;·&nbsp; <b>${keyLabel(this.settings.key('brake'))}</b> brake
-        &nbsp;·&nbsp; <b>Click</b> guns &nbsp;·&nbsp; <b>Right click</b> missile
-        &nbsp;·&nbsp; <b>${keyLabel(this.settings.key('flares'))}</b> flares
-        &nbsp;·&nbsp; <b>Tab</b> scores
-      </div>
-      <div class="fineprint">First team to ${CFG.match.scoreLimit} kills wins &nbsp;·&nbsp;
-        settings and key bindings behind the gear</div>
+      <div class="fineprint">First team to ${CFG.match.scoreLimit} kills
+        &nbsp;·&nbsp; full controls behind the gear</div>
     </div>`;
   }
 
