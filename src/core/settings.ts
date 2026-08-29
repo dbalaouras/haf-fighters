@@ -32,6 +32,12 @@ export interface SettingsData {
   sensitivity: number;
   volume: number;
   muted: boolean;
+  /**
+   * Skip buildings that are off screen. Worth nothing on a machine that can
+   * already carry the whole city, so it defaults off and is there for ones
+   * that cannot.
+   */
+  cullCity: boolean;
   bindings: Bindings;
 }
 
@@ -50,6 +56,7 @@ const DEFAULTS: SettingsData = {
   sensitivity: 0.35,
   volume: 0.7,
   muted: false,
+  cullCity: false,
   bindings: defaultBindings(),
 };
 
@@ -109,7 +116,7 @@ export class Settings {
     this.emit();
   }
 
-  toggle(key: 'invertPitch' | 'invertRoll' | 'assist' | 'muted') {
+  toggle(key: 'invertPitch' | 'invertRoll' | 'assist' | 'muted' | 'cullCity') {
     this.data[key] = !this.data[key];
     this.emit();
   }

@@ -48,7 +48,7 @@ const GEAR_ICON = `
     <circle cx="12" cy="12" r="3.1"/>
   </svg>`;
 
-type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted'
+type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted' | 'cullCity'
   | 'sens-' | 'sens+' | 'vol-' | 'vol+' | 'reset' | `bind:${ActionId}`;
 
 type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back'
@@ -150,7 +150,7 @@ export class Overlay {
       case 'vol-': this.settings.nudgeVolume(-0.1); break;
       case 'vol+': this.settings.nudgeVolume(0.1); break;
       case 'reset': this.settings.reset(); break;
-      case 'invertPitch': case 'invertRoll': case 'assist': case 'muted':
+      case 'invertPitch': case 'invertRoll': case 'assist': case 'muted': case 'cullCity':
         this.settings.toggle(ctl);
         break;
     }
@@ -220,6 +220,8 @@ export class Overlay {
       ${this.toggleRow('Invert roll', 'invertRoll', d.invertRoll)}
       ${this.toggleRow('Flight assist', 'assist', d.assist, 'G')}
       ${this.stepperRow('Mouse sensitivity', 'sens-', 'sens+', `${this.settings.sensitivityPct}%`, '[ ]')}
+      <div class="bsub">Graphics</div>
+      ${this.toggleRow('Skip off-screen buildings', 'cullCity', d.cullCity)}
       <div class="bsub">Audio</div>
       ${this.toggleRow('Mute', 'muted', d.muted, 'N')}
       ${this.stepperRow('Volume', 'vol-', 'vol+', `${this.settings.volumePct}%`)}

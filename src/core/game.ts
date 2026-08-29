@@ -259,6 +259,7 @@ export class Game {
       this.audio.setListener(this.camera.position, this.camera.quaternion);
       this.audio.update(dt, this.player, !this.paused && !this.over, this.aircraft);
       this.terrain.update(dt, this.camera.position);
+      this.city?.update(this.camera, this.settings.data.cullCity);
       this.renderer.render(this.scene, this.camera);
       this.hud.draw(this.hudState(), dt);
       this.onFrame?.(dt);

@@ -10,6 +10,8 @@ interface Block {
   top: number;
 }
 
+const _sphere = new THREE.Sphere();
+
 const BRIDGE_X = 0;
 const BRIDGE_HALF_WIDTH = 240;   // keep towers clear of buildings
 const DECK_Y = 78;
@@ -26,6 +28,22 @@ export class City {
   /** blocks bucketed into a coarse grid, so height lookups stay O(1) */
   private grid = new Map<number, Block[]>();
   private readonly cell = 600;
+
+  /**
+   * Per height class: the mesh, every instance's matrix, and a bounding sphere
+   * each, so the optional cull can repack the visible ones into the front of
+   * the buffer and lower `count`. Three meshes throughout — the renderer is
+   * bound by submission rather than fill here, so splitting the towers into
+   * per-cell meshes would cost more than it saved.
+   */
+  private tiers: Array<{
+    mesh: THREE.InstancedMesh;
+    matrices: Float32Array;
+    centres: Float32Array;   // x, y, z, radius per instance
+  }> = [];
+  private culling = false;
+  private frustum = new THREE.Frustum();
+  private projScreen = new THREE.Matrix4();
 
   constructor(spec: MapSpec, extent = 11000) {
     this.buildBlocks(spec, extent);
@@ -120,17 +138,25 @@ export class City {
         map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.15,
       });
       const mesh = new THREE.InstancedMesh(geo, mat, members.length);
-      mesh.frustumCulled = false;
+      mesh.frustumCulled = false;   // whole-object culling is useless at this size
 
+      const matrices = new Float32Array(members.length * 16);
+      const centres = new Float32Array(members.length * 4);
       members.forEach((b, i) => {
         dummy.position.set(b.x, b.ground + b.height / 2, b.z);
         dummy.scale.set(b.halfX * 2, b.height, b.halfZ * 2);
         dummy.rotation.set(0, 0, 0);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
+        dummy.matrix.toArray(matrices, i * 16);
+        centres[i * 4] = b.x;
+        centres[i * 4 + 1] = b.ground + b.height / 2;
+        centres[i * 4 + 2] = b.z;
+        centres[i * 4 + 3] = Math.hypot(b.halfX, b.halfZ, b.height / 2);
       });
       mesh.instanceMatrix.needsUpdate = true;
       meshes.push(mesh);
+      this.tiers.push({ mesh, matrices, centres });
     }
     return meshes;
   }
@@ -263,6 +289,69 @@ export class City {
   /* ---------------- collision ---------------- */
 
   /** Solid height at a point: the top of a building if inside one, else far below. */
+  /**
+   * Optionally skip the towers that are off screen, repacking the survivors into
+   * the front of each instance buffer. Off by default: on a fast machine there is
+   * nothing to gain (measured 0.640 ms culled against 0.633 ms not), so this only
+   * exists for hardware that cannot carry all 3,400 instances.
+   *
+   * Two details make or break it, and getting either wrong shows up as towers
+   * appearing late at the edge of the screen while you bank:
+   *
+   *  - the camera matrices have to be refreshed here. `matrixWorldInverse` is
+   *    otherwise only rebuilt inside `renderer.render()`, which runs after this,
+   *    so the frustum would be a frame behind — and an F-16 rolls 3.5 degrees in
+   *    a frame.
+   *  - the visible set has to be rebuilt every frame. Recomputing it only after
+   *    the camera had moved a bit was worth 0.1 ms and cost several degrees of
+   *    stale frustum on top of the above.
+   */
+  update(camera: THREE.Camera, enabled: boolean) {
+    if (!enabled) {
+      if (this.culling) this.drawEverything();
+      return;
+    }
+    this.culling = true;
+
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.projScreen);
+
+    for (const { mesh, matrices, centres } of this.tiers) {
+      const total = centres.length / 4;
+      const dst = mesh.instanceMatrix.array as Float32Array;
+      let n = 0;
+      for (let i = 0; i < total; i++) {
+        const o = i * 4;
+        _sphere.center.set(centres[o], centres[o + 1], centres[o + 2]);
+        _sphere.radius = centres[o + 3];
+        if (!this.frustum.intersectsSphere(_sphere)) continue;
+        dst.set(matrices.subarray(i * 16, i * 16 + 16), n * 16);
+        n++;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /** Put every instance back, for when the setting is switched off mid-match. */
+  private drawEverything() {
+    this.culling = false;
+    for (const { mesh, matrices, centres } of this.tiers) {
+      (mesh.instanceMatrix.array as Float32Array).set(matrices);
+      mesh.count = centres.length / 4;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /** How many tower instances are being drawn, and out of how many. */
+  get instanceLoad(): { drawn: number; total: number } {
+    let drawn = 0, total = 0;
+    for (const t of this.tiers) { drawn += t.mesh.count; total += t.centres.length / 4; }
+    return { drawn, total };
+  }
+
   solidHeight = (x: number, z: number): number => {
     let best = -1e6;
     // a footprint can straddle a cell boundary, so check the neighbours too
