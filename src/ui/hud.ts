@@ -539,11 +539,16 @@ export class Hud {
 
   /* ---------------- radar ---------------- */
 
+  /** Radar geometry, shared so anything else can lay out around it. */
+  private radarLayout() {
+    const r = Math.min(74, this.w * 0.11, this.h * 0.14);
+    return { r, cx: this.w - r - 42, cy: r + 46 };
+  }
+
   private radar(s: HudState) {
     const c = this.ctx;
     const p = s.player;
-    const r = 74;
-    const cx = this.w / 2, cy = this.h - r - 30;
+    const { r, cx, cy } = this.radarLayout();
     const range = s.radarRange;
 
     c.fillStyle = 'rgba(6, 18, 24, 0.5)';
@@ -656,8 +661,10 @@ export class Hud {
 
   private feed(s: HudState) {
     const c = this.ctx;
+    const rl = this.radarLayout();
     c.textAlign = 'right';
-    let y = 96;
+    // starts below the radar, which now occupies the top-right corner
+    let y = rl.cy + rl.r + 34;
     for (const line of s.feed.slice(-6)) {
       const a = clamp01(line.t / 1.2);
       c.globalAlpha = a;

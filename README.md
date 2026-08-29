@@ -161,8 +161,9 @@ stick holds its position while you look. Releasing eases the view back.
 
 ## Radar zoom
 
-The scroll wheel steps the radar through 2 / 4 / 6 / 10 / 16 km. The current range
-is printed under the display.
+The scroll wheel steps the radar through 2 / 4 / 6 / 10 / 16 km. The display sits in
+the top-right corner with the current range printed under it, and the kill feed runs
+below it.
 
 ## Rearm rings
 
@@ -328,4 +329,4 @@ Roughly in the order that would add the most:
 4. **Native Mac build** — wrap in Tauri (small binary, uses the system WebView) for
    a real `.app`. No engine changes required.
 5. **Touch controls** — a virtual stick would make it work on a phone.
-6. **Chaff and radar missiles** — a second countermeasure/weapon pairing.
+6. **Chaff** — a countermeasure for radar missiles, which currently have none.
