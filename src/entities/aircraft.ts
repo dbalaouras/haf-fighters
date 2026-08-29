@@ -392,8 +392,9 @@ export class Aircraft {
     this.burnerFlicker = damp(this.burnerFlicker, rand(0.85, 1.15), 20, dt);
     const t = clamp01((this.controls.throttle - 0.5) / 0.5);
     const len = (0.12 + t * 1.6 + (this.burner ? 1.9 : 0)) * this.burnerFlicker;
+    const wide = this.frame.shape.engines === 1 ? 1.5 : 1;
     for (const b of this.visual.burners) {
-      b.scale.set(0.7 + t * 0.5, 0.7 + t * 0.5, Math.max(0.01, len));
+      b.scale.set((0.7 + t * 0.5) * wide, (0.7 + t * 0.5) * wide, Math.max(0.01, len));
       (b.material as THREE.Material).opacity = 0.25 + 0.6 * t + (this.burner ? 0.2 : 0);
     }
   }

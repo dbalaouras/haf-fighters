@@ -209,8 +209,10 @@ one being strictly better:
 
 The F-16 out-turns everything and carries the heat-seekers and flares to fight up
 close; the F-22 outruns and out-ranges everything on a radar-heavy load; the FA-9
-sits between with no weakness and no edge. Each has a distinct silhouette — the F-16
-is short-span with a single fin, the F-22 the largest with twin fins.
+sits between with no weakness and no edge. Each is structurally different, not just scaled: the **F-16 is single-engine** with a
+chin inlet and one upright fin, while the FA-9 and F-22 are twin-engine with shoulder
+inlets and canted twin fins — the F-22's canted twice as hard. From behind, the F-16
+burns one wide plume and the others two.
 
 Measured over four matches with the AI flying all three, and excluding the player:
 K/D lands at 1.06, 1.25 and 1.21 respectively, so the triangle holds.

@@ -279,7 +279,10 @@ export interface AirframeSpec {
   flares: number;
   chaff: number;
   /** mesh proportions, so the three read apart at distance */
-  shape: { span: number; length: number; tail: 'twin' | 'single' };
+  shape: {
+    span: number; length: number; tail: 'twin' | 'single';
+    engines: 1 | 2; intake: 'chin' | 'side'; finCant: number;
+  };
 }
 
 /**
@@ -295,7 +298,8 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
     hp: 86, burnerBurn: 0.31,
     ammo: { IR: 8, RADAR: 2 },
     flares: 40, chaff: 16,
-    shape: { span: 0.88, length: 0.92, tail: 'single' },
+    // single engine, chin inlet, one upright fin — an F-16 in silhouette
+    shape: { span: 0.88, length: 0.92, tail: 'single', engines: 1, intake: 'chin', finCant: 0 },
   },
   FA9: {
     id: 'FA9', name: 'FA-9', role: 'All-rounder — no weakness, no edge',
@@ -304,7 +308,7 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
     hp: 100, burnerBurn: 0.25,
     ammo: { IR: 6, RADAR: 4 },
     flares: 32, chaff: 24,
-    shape: { span: 1, length: 1, tail: 'twin' },
+    shape: { span: 1, length: 1, tail: 'twin', engines: 2, intake: 'side', finCant: 0.22 },
   },
   F22: {
     id: 'F22', name: 'F-22', role: 'Interceptor — fastest, toughest, radar-heavy',
@@ -313,7 +317,8 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
     hp: 114, burnerBurn: 0.205,
     ammo: { IR: 4, RADAR: 6 },
     flares: 24, chaff: 32,
-    shape: { span: 1.12, length: 1.1, tail: 'twin' },
+    // twin engines and hard-canted fins, the way an F-22 reads from behind
+    shape: { span: 1.12, length: 1.1, tail: 'twin', engines: 2, intake: 'side', finCant: 0.46 },
   },
 };
 

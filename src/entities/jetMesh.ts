@@ -15,6 +15,11 @@ export interface JetVisual {
   burners: THREE.Mesh[];
 }
 
+/** where the engines sit across the span */
+function nozzleOffsets(shape: JetShape): number[] {
+  return shape.engines === 1 ? [0] : [-0.7, 0.7];
+}
+
 const matCache = new Map<string, THREE.Material>();
 const mat = (key: string, make: () => THREE.Material): THREE.Material => {
   let m = matCache.get(key);
@@ -65,13 +70,23 @@ export interface JetShape {
   span: number;
   length: number;
   tail: 'twin' | 'single';
+  /** how many engines, which changes the tail end entirely */
+  engines: 1 | 2;
+  /** a single chin inlet under the nose, or a pair on the shoulders */
+  intake: 'chin' | 'side';
+  /** outward cant of the fins, in radians */
+  finCant: number;
 }
 
-const DEFAULT_SHAPE: JetShape = { span: 1, length: 1, tail: 'twin' };
+const DEFAULT_SHAPE: JetShape = {
+  span: 1, length: 1, tail: 'twin', engines: 2, intake: 'side', finCant: 0.22,
+};
 
 export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): JetVisual {
   const group = new THREE.Group();
-  const key = `${shape.span}-${shape.length}-${shape.tail}`;
+  const key = [
+    shape.span, shape.length, shape.tail, shape.engines, shape.intake, shape.finCant,
+  ].join('-');
 
   const body = mat('body', () => new THREE.MeshLambertMaterial({ color: 0x8a949e, flatShading: true }));
   const dark = mat('dark', () => new THREE.MeshLambertMaterial({ color: 0x3a4149, flatShading: true }));
@@ -111,16 +126,29 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
 
   const darkGeo = buildPart(`jet-dark-${key}`, () => {
     const parts: THREE.BufferGeometry[] = [];
-    for (const side of [-1, 1]) {
-      const intake = new THREE.BoxGeometry(0.9, 0.85, 4.2);
-      intake.translate(side * 1.35, -0.35, -0.8);
-      parts.push(intake);
 
-      const nozzle = new THREE.CylinderGeometry(0.62, 0.5, 1.6, 8);
+    if (shape.intake === 'chin') {
+      // one inlet slung under the forward fuselage
+      const intake = new THREE.BoxGeometry(1.7, 1.0, 4.6);
+      intake.translate(0, -0.95, -1.6);
+      parts.push(intake);
+    } else {
+      for (const side of [-1, 1]) {
+        const intake = new THREE.BoxGeometry(0.9, 0.85, 4.2);
+        intake.translate(side * 1.35, -0.35, -0.8);
+        parts.push(intake);
+      }
+    }
+
+    // one big nozzle on the centreline, or a pair spaced either side of it
+    for (const x of nozzleOffsets(shape)) {
+      const r = shape.engines === 1 ? 0.86 : 0.62;
+      const nozzle = new THREE.CylinderGeometry(r, r * 0.8, 1.7, 10);
       nozzle.rotateX(Math.PI / 2);
-      nozzle.translate(side * 0.7, 0, 5.4);
+      nozzle.translate(x, 0, 5.4);
       parts.push(nozzle);
     }
+
     const g = merge(parts);
     g.scale(shape.span, 1, shape.length);
     return g;
@@ -144,7 +172,7 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
       if (shape.tail === 'twin') {
         const f = panel(FIN, 0.16);
         f.rotateZ(Math.PI / 2);
-        f.rotateZ(side * 0.22);
+        f.rotateZ(side * shape.finCant);
         f.translate(side * 1.1, 0.5, 0);
         parts.push(f);
       }
@@ -174,10 +202,12 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
   group.add(new THREE.Mesh(glassGeo, glass));
 
   const burners: THREE.Mesh[] = [];
-  for (const side of [-1, 1]) {
+  for (const x of nozzleOffsets(shape)) {
     const burner = new THREE.Mesh(burnerGeo, flame.clone());
-    burner.position.set(side * 0.7, 0, 6.1);
-    burner.scale.set(1, 1, 0.01);
+    burner.position.set(x * shape.span, 0, 6.1 * shape.length);
+    // a single engine burns one bigger plume rather than two
+    const width = shape.engines === 1 ? 1.5 : 1;
+    burner.scale.set(width, width, 0.01);
     burners.push(burner);
     group.add(burner);
   }
