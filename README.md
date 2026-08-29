@@ -290,6 +290,12 @@ key. Bank, then pull to turn, and roll out by hand. This is what the AI pilots f
 
 ## How a fight works
 
+- **The gunsight solves your lead for you.** A pipper marks where your rounds would
+  actually arrive, with a dashed line back to the boresight and a ring that closes as
+  the target runs out of range. It fills in amber when the solution is good — that is
+  your cue to fire. Aiming at it lands **92%** of rounds against a target flying
+  straight and **78%** against one turning hard; without it the lead angle runs to a
+  dozen degrees and the cannon is guesswork.
 - **Guns never run out of ammunition.** Heat is the only limit: sustained fire cooks
   the barrels after about 9 seconds and locks them out until they cool. The arc around
   the reticle and the `CANNON` readout both show heat.

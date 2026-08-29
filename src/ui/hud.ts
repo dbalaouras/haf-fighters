@@ -25,6 +25,10 @@ export interface HudState {
   rearmFlash: number;
   radarRange: number;
   freeLook: boolean;
+  /** where the player's rounds would arrive, or null with nothing in front */
+  gun: {
+    point: THREE.Vector3; dist: number; missBy: number; hot: boolean; name: string;
+  } | null;
 }
 
 const ACCENT = '#7fe3b0';
@@ -80,6 +84,7 @@ export class Hud {
     this.contacts(s);
     if (s.player.alive) {
       this.reticle(s);
+      this.gunPipper(s);
       this.bankScale(s);
       this.speedTape(s);
       this.altTape(s);
@@ -277,6 +282,69 @@ export class Hud {
       c.moveTo(fpm.x, fpm.y - 5); c.lineTo(fpm.x, fpm.y - 10);
       c.stroke();
     }
+    c.globalAlpha = 1;
+  }
+
+  /**
+   * The gunsight: a pipper on the point the rounds would actually reach, with a
+   * lead line back to the boresight. It fills in when the solution is good, which
+   * is the whole point — the cannon is otherwise pure guesswork against a turning
+   * target, since the lead angle runs to a dozen degrees at typical range.
+   */
+  private gunPipper(s: HudState) {
+    const sol = s.gun;
+    if (!sol) return;
+
+    const sp = this.project(sol.point, s.camera);
+    if (!sp) return;
+
+    const c = this.ctx;
+    const cx = this.w / 2, cy = this.h / 2;
+    // fade in as the shot becomes plausible rather than popping into view
+    const near = clamp01(1 - (sol.dist - CFG.gun.range) / (CFG.gun.pipperRange - CFG.gun.range));
+    const alpha = 0.35 + 0.65 * near;
+    const col = sol.hot ? '#ffd166' : ACCENT;
+
+    // lead line from the boresight out to the solution
+    c.globalAlpha = alpha * 0.4;
+    c.strokeStyle = col;
+    c.setLineDash([4, 5]);
+    c.beginPath();
+    c.moveTo(cx, cy);
+    c.lineTo(sp.x, sp.y);
+    c.stroke();
+    c.setLineDash([]);
+
+    // the pipper itself
+    c.globalAlpha = alpha;
+    c.lineWidth = sol.hot ? 2 : 1.3;
+    c.strokeStyle = col;
+    c.beginPath();
+    c.arc(sp.x, sp.y, 9, 0, Math.PI * 2);
+    c.stroke();
+
+    if (sol.hot) {
+      c.fillStyle = col;
+      c.beginPath();
+      c.arc(sp.x, sp.y, 3.2, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // range arc: a full ring at the muzzle, closing as the target runs away
+    const rangeLeft = clamp01(1 - sol.dist / CFG.gun.range);
+    if (rangeLeft > 0) {
+      c.globalAlpha = alpha * 0.85;
+      c.lineWidth = 2.4;
+      c.beginPath();
+      c.arc(sp.x, sp.y, 15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * rangeLeft);
+      c.stroke();
+    }
+
+    c.lineWidth = 1;
+    c.globalAlpha = alpha * 0.9;
+    c.fillStyle = col;
+    c.textAlign = 'left';
+    c.fillText(`${sol.dist.toFixed(0)}m`, sp.x + 20, sp.y + 4);
     c.globalAlpha = 1;
   }
 

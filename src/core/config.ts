@@ -59,6 +59,10 @@ export const CFG = {
     spread: 0.0045,       // radians
     range: 1600,
     // no ammo count — the barrels cooking off is the only thing that stops you firing
+    /** the gunsight stops solving past this — beyond it the shot is fantasy */
+    pipperRange: 1500,
+    /** predicted miss under this many metres lights the pipper as a firing cue */
+    pipperHotMiss: 14,
     heatPerShot: 0.024,   // ~9 s of continuous fire before the barrels cook
     heatCool: 0.45,       // per second
     heatResume: 0.35,     // must cool below this before firing again

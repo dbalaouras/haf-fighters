@@ -89,6 +89,8 @@ export class Game {
   private _v = new THREE.Vector3();
   private _w = new THREE.Vector3();
   private _up = new THREE.Vector3();
+  private _gun = new THREE.Vector3();
+  private _gunDir = new THREE.Vector3();
 
   constructor(
     sceneCanvas: HTMLCanvasElement,
@@ -575,6 +577,50 @@ export class Game {
     this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
   }
 
+  /**
+   * Where the player's rounds would arrive, for the gunsight.
+   *
+   * Same solution the AI flies: extrapolate the target's current turn over the
+   * bullet's flight time. Solved twice, because the flight time depends on the
+   * distance to the predicted point rather than to the target's present position.
+   */
+  private gunSolution() {
+    const p = this.player;
+    if (!p.alive) return null;
+
+    // prefer whatever is locked, else the closest enemy near the nose
+    let target: Aircraft | null = null;
+    let bestScore = Infinity;
+    for (const t of this.aircraft) {
+      if (!t.alive || t.team === p.team) continue;
+      const d = t.pos.distanceTo(p.pos);
+      if (d > CFG.gun.pipperRange) continue;
+      const ang = p.forward(this._w).angleTo(this._v.copy(t.pos).sub(p.pos).normalize());
+      if (ang > 0.9) continue;                       // roughly ahead only
+      const score = d + ang * 1400 - (t === p.lockTarget ? 600 : 0);
+      if (score < bestScore) { bestScore = score; target = t; }
+    }
+    if (!target) return null;
+
+    const bulletSpeed = CFG.gun.speed + p.speed * 0.35;
+    let t = target.pos.distanceTo(p.pos) / bulletSpeed;
+    for (let i = 0; i < 2; i++) {
+      target.predictPosition(t, this._gun);
+      t = this._gun.distanceTo(p.pos) / bulletSpeed;
+    }
+
+    const dist = this._gun.distanceTo(p.pos);
+    const off = p.forward(this._w).angleTo(this._gunDir.copy(this._gun).sub(p.pos).normalize());
+    const missBy = Math.tan(Math.min(off, 1.3)) * dist;
+    return {
+      point: this._gun,
+      dist,
+      missBy,
+      hot: missBy < CFG.gun.pipperHotMiss && dist < CFG.gun.range,
+      name: target.name,
+    };
+  }
+
   /* ---------------- hud ---------------- */
 
   private hudState() {
@@ -608,6 +654,7 @@ export class Game {
       rearmFlash: this.rearmFlash,
       radarRange: this.input.radarRange,
       freeLook: this.freeLook,
+      gun: this.gunSolution(),
       muted: this.settings.effectiveVolume <= 0,
     };
   }
