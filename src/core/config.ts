@@ -278,6 +278,12 @@ export interface AirframeSpec {
   ammo: Record<WeaponId, number>;
   flares: number;
   chaff: number;
+  /**
+   * Tactical greys, roughly matching what the real aircraft wear: the F-16 in
+   * two-tone grey over a black radome, the F-22 in a notably darker gunship
+   * grey. Team identity does not live here — see the fin flash in jetMesh.
+   */
+  paint: { body: number; dark: number };
   /** mesh proportions, so the three read apart at distance */
   shape: {
     span: number; length: number; tail: 'twin' | 'single';
@@ -298,6 +304,7 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
     hp: 86, burnerBurn: 0.31,
     ammo: { IR: 8, RADAR: 2 },
     flares: 40, chaff: 16,
+    paint: { body: 0x8f969c, dark: 0x2b2f33 },   // black radome, as the real one wears
     // single engine, chin inlet, one upright fin — an F-16 in silhouette
     shape: { span: 0.88, length: 0.92, tail: 'single', engines: 1, intake: 'chin', finCant: 0 },
   },
@@ -308,6 +315,7 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
     hp: 100, burnerBurn: 0.25,
     ammo: { IR: 6, RADAR: 4 },
     flares: 32, chaff: 24,
+    paint: { body: 0x7d868d, dark: 0x474e55 },
     shape: { span: 1, length: 1, tail: 'twin', engines: 2, intake: 'side', finCant: 0.22 },
   },
   F22: {
@@ -317,6 +325,7 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
     hp: 114, burnerBurn: 0.205,
     ammo: { IR: 4, RADAR: 6 },
     flares: 24, chaff: 32,
+    paint: { body: 0x5b6165, dark: 0x34383b },   // gunship grey, darker than the others
     // twin engines and hard-canted fins, the way an F-22 reads from behind
     shape: { span: 1.12, length: 1.1, tail: 'twin', engines: 2, intake: 'side', finCant: 0.46 },
   },

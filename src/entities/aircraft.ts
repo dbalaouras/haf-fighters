@@ -123,7 +123,7 @@ export class Aircraft {
     this.frame = frame;
     this.isPlayer = isPlayer;
     this.hp = frame.hp;
-    this.visual = buildJet(TEAM[team].color, frame.shape);
+    this.visual = buildJet(TEAM[team].color, frame.shape, frame.paint);
     this.object = this.visual.group;
   }
 
@@ -132,7 +132,7 @@ export class Aircraft {
     if (this.frame === frame) return;
     this.frame = frame;
     parent.remove(this.object);
-    this.visual = buildJet(TEAM[this.team].color, frame.shape);
+    this.visual = buildJet(TEAM[this.team].color, frame.shape, frame.paint);
     this.object = this.visual.group;
     parent.add(this.object);
   }

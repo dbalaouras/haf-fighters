@@ -66,6 +66,15 @@ function buildPart(key: string, make: () => THREE.BufferGeometry): THREE.BufferG
   return g;
 }
 
+export interface JetPaint {
+  /** airframe grey */
+  body: number;
+  /** radome, inlets and nozzles */
+  dark: number;
+}
+
+const DEFAULT_PAINT: JetPaint = { body: 0x7d868d, dark: 0x474e55 };
+
 export interface JetShape {
   span: number;
   length: number;
@@ -82,15 +91,27 @@ const DEFAULT_SHAPE: JetShape = {
   span: 1, length: 1, tail: 'twin', engines: 2, intake: 'side', finCant: 0.22,
 };
 
-export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): JetVisual {
+export function buildJet(
+  teamColor: number,
+  shape: JetShape = DEFAULT_SHAPE,
+  paint: JetPaint = DEFAULT_PAINT,
+): JetVisual {
   const group = new THREE.Group();
   const key = [
     shape.span, shape.length, shape.tail, shape.engines, shape.intake, shape.finCant,
   ].join('-');
 
-  const body = mat('body', () => new THREE.MeshLambertMaterial({ color: 0x8a949e, flatShading: true }));
-  const dark = mat('dark', () => new THREE.MeshLambertMaterial({ color: 0x3a4149, flatShading: true }));
-  const accent = mat(`accent-${teamColor}`, () => new THREE.MeshLambertMaterial({ color: teamColor, flatShading: true }));
+  const body = mat(`body-${paint.body}`,
+    () => new THREE.MeshLambertMaterial({ color: paint.body, flatShading: true }));
+  const dark = mat(`dark-${paint.dark}`,
+    () => new THREE.MeshLambertMaterial({ color: paint.dark, flatShading: true }));
+
+  // Squadron fin flash rather than a plastic-toy blue: the team colour pulled
+  // most of the way back toward the airframe grey, since the HUD already boxes
+  // every contact friend-or-foe and this only has to confirm it up close.
+  const flash = new THREE.Color(teamColor).lerp(new THREE.Color(paint.body), 0.42);
+  const accent = mat(`accent-${teamColor}-${paint.body}`,
+    () => new THREE.MeshLambertMaterial({ color: flash, flatShading: true }));
   const glass = mat('glass', () => new THREE.MeshPhongMaterial({
     color: 0x0d2033, shininess: 90, specular: 0xaaccff, transparent: true, opacity: 0.85,
   }));
@@ -105,11 +126,6 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
     const fus = new THREE.CylinderGeometry(0.95, 0.82, 10, 10, 1);
     fus.rotateX(Math.PI / 2);
     parts.push(fus);
-
-    const nose = new THREE.ConeGeometry(0.95, 3.8, 10);
-    nose.rotateX(-Math.PI / 2);
-    nose.translate(0, 0, -6.9);
-    parts.push(nose);
 
     for (const side of [-1, 1]) {
       const w = panel(WING, 0.22);
@@ -127,6 +143,13 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
   const darkGeo = buildPart(`jet-dark-${key}`, () => {
     const parts: THREE.BufferGeometry[] = [];
 
+    // radome: a real fighter's nose is a different material to the skin and
+    // reads a shade or two off the airframe grey
+    const nose = new THREE.ConeGeometry(0.95, 3.8, 10);
+    nose.rotateX(-Math.PI / 2);
+    nose.translate(0, 0, -6.9);
+    parts.push(nose);
+
     if (shape.intake === 'chin') {
       // one inlet slung under the forward fuselage
       const intake = new THREE.BoxGeometry(1.7, 1.0, 4.6);
@@ -138,6 +161,15 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
         intake.translate(side * 1.35, -0.35, -0.8);
         parts.push(intake);
       }
+    }
+
+    for (const side of [-1, 1]) {
+      // wingtip rails. The wing is swept, so the tip chord sits BEHIND the
+      // root — +z, not -z. Airframe-coloured now: a saturated slab out here
+      // was the single most toy-like thing on the model.
+      const tip = new THREE.BoxGeometry(1.5, 0.26, 1.4);
+      tip.translate(side * 5.75, 0, 1.9);
+      parts.push(tip);
     }
 
     // one big nozzle on the centreline, or a pair spaced either side of it
@@ -164,11 +196,6 @@ export function buildJet(teamColor: number, shape: JetShape = DEFAULT_SHAPE): Je
       parts.push(f);
     }
     for (const side of [-1, 1]) {
-      // the wing is swept, so the tip chord sits BEHIND the root — +z, not -z
-      const tip = new THREE.BoxGeometry(1.5, 0.26, 1.4);
-      tip.translate(side * 5.75, 0, 1.9);
-      parts.push(tip);
-
       if (shape.tail === 'twin') {
         // rotateZ(pi/2) stands the fin up; the cant then has to SUBTRACT on the
         // +x side, since both rotations are about the same axis and adding would

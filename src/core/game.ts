@@ -180,7 +180,8 @@ export class Game {
       this.scene.add(this.city.group);
     } else if (spec.scenery === 'volcano') {
       this.volcano = new Volcano();
-      this.terrain.setVolume(this.volcano);
+      // a solid cone is just a height, so it registers like any other obstacle
+      this.terrain.setObstacles(this.volcano.heightAt);
       this.scene.add(this.volcano.group);
     }
 
