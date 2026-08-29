@@ -86,8 +86,8 @@ const ISLANDS: ReadonlyArray<{ x: number; z: number; r: number; h: number }> = [
 
 const CORAL: MapSpec = {
   id: 'CORAL',
-  name: 'CORAL RANGE — DAWN',
-  blurb: 'Islands, open water, and a volcano you can fly through',
+  name: 'CORAL RANGE — SUNRISE',
+  blurb: 'Islands and open water, around a live volcano',
 
   baseHeight(x, z) {
     let mask = 0;
@@ -114,15 +114,18 @@ const CORAL: MapSpec = {
     }
   },
 
+  // Sunrise, not the 38-degree mid-morning this used to call dawn: the sun sits
+  // at 16 degrees so it is still in shot, warms the horizon, and rakes the water.
+  // The low backlit dawn is reserved for the harbour map.
   sky: {
-    top: 0x1d4f8f, mid: 0x76a8d8, horizon: 0x9db8d4,
-    light: new THREE.Vector3(0.45, 0.62, 0.65).normalize(),
-    discPower: 12000, discStrength: 3.2, haloStrength: 0.3, discColor: 0xfff0cc,
-    stars: 0, clouds: 340, cloudColor: 0xffffff, cloudOpacity: 0.5,
+    top: 0x123f7d, mid: 0x6b9ccc, horizon: 0xd7a279,
+    light: new THREE.Vector3(0.55, 0.28, 0.79).normalize(),
+    discPower: 6500, discStrength: 4.4, haloStrength: 0.55, discColor: 0xffd39a,
+    stars: 0, clouds: 340, cloudColor: 0xffe3cd, cloudOpacity: 0.55,
   },
-  water: { deep: 0x11405f, shallow: 0x49a8cc, specular: 0.85, fogTint: new THREE.Vector3(0.62, 0.72, 0.85) },
-  light: { sunColor: 0xfff3dd, sunIntensity: 2.1, skyColor: 0xa8ccf0, groundColor: 0x2a3a30, hemiIntensity: 1.15 },
-  fog: { color: 0x9db8d4, near: 3000, far: 22000 },
+  water: { deep: 0x0e3652, shallow: 0x3f95bb, specular: 1.15, fogTint: new THREE.Vector3(0.78, 0.68, 0.62) },
+  light: { sunColor: 0xffd9a6, sunIntensity: 2.3, skyColor: 0xc0b6c4, groundColor: 0x30302a, hemiIntensity: 1.0 },
+  fog: { color: 0xb9977f, near: 3500, far: 23000 },
   scenery: 'volcano',
 };
 
