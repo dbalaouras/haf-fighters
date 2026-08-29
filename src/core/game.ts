@@ -452,7 +452,9 @@ export class Game {
 
   private destroy(victim: Aircraft, killer: Aircraft | null) {
     this.fx.explosion(victim.pos, 2.4);
-    this.audio.explosion(victim.pos, 1.5);
+    // your own aircraft coming apart is a different event from one going up nearby
+    if (victim === this.player) this.audio.playerDeath(victim.pos);
+    else this.audio.explosion(victim.pos, 1.5);
     victim.die();
 
     if (killer && killer !== victim && killer.team !== victim.team) {
@@ -460,7 +462,10 @@ export class Game {
       killer.score += CFG.scoring.kill;
       this.score[killer.team]++;
       this.pushFeed(`${killer.name} ▸ ${victim.name}`, killer.team, 5);
-      if (killer === this.player) this.shake = Math.min(1, this.shake + 0.25);
+      if (killer === this.player) {
+        this.shake = Math.min(1, this.shake + 0.25);
+        this.audio.splash();
+      }
     } else {
       this.pushFeed(`${victim.name} went down`, null, 5);
     }

@@ -107,6 +107,21 @@ what stops synthesised effects sitting on top of the world rather than in it. A
 compressor on the master bus keeps a busy furball from clipping — measured at 3 dB
 of headroom with the burner lit and half a dozen effects firing at once.
 
+Three cues carry most of the tension and are built as distinct events rather than
+variations on a beep:
+
+- **Missile warning** is a harsh radar-warning buzzer, not a chime, and it tightens
+  as the round closes — 5 pulses a second at 2.6 km rising to 12 at knife range,
+  with the pitch climbing from about 1.4 to 2.0 kHz. It tells you *how close*, not
+  merely *that something is coming*.
+- **Your own death** is a heavy hit, structure tearing downwards, a sub drop and a
+  ringing that outlives it, with the whole mix ducking to 28% underneath and
+  recovering over two and a half seconds. Another aircraft going up nearby is a
+  plain explosion; yours is not.
+- **Splash** — your kill — is a squelch click and a clipped two-note call through a
+  narrow band, so it reads as a radio confirmation rather than another world sound.
+  It is deliberately not positional.
+
 Volume and mute are behind the gear.
 
 ## Screens

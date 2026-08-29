@@ -24,6 +24,8 @@ const WHINE_RATIOS = [1, 1.51, 2.17];
 export class Sound {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
+  /** sits after the volume control, so ducking never fights the volume setting */
+  private duck!: GainNode;
   private reverbSend!: GainNode;
   private noiseBuf!: AudioBuffer;
 
@@ -48,7 +50,6 @@ export class Sound {
 
   private lockBeep = 0;
   private warnBeep = 0;
-  private warnToggle = false;
   private lastGunSound = new Map<Aircraft, number>();
   private prevRange = new Map<Aircraft, number>();
   private lastFlyby = -1;
@@ -86,9 +87,13 @@ export class Sound {
     comp.release.value = 0.22;
     comp.connect(ctx.destination);
 
+    this.duck = ctx.createGain();
+    this.duck.gain.value = 1;
+    this.duck.connect(comp);
+
     this.master = ctx.createGain();
     this.master.gain.value = 0;
-    this.master.connect(comp);
+    this.master.connect(this.duck);
 
     // reusable white noise
     const len = Math.floor(ctx.sampleRate * 2);
@@ -472,6 +477,118 @@ export class Sound {
     this.tone(out, type, freq, freq, dur + 0.01);
   }
 
+  /**
+   * One pulse of the radar warning receiver: a hard square through a resonant
+   * bandpass with a little grit, which is what a cockpit buzzer actually sounds
+   * like through a small speaker.
+   */
+  private rwrPulse(freq: number, dur: number, vol: number) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const out = this.out(vol, 0, 0, 0.06);
+    if (!out) return;
+
+    const bp = this.band(out, 'bandpass', freq * 1.8, 2.2);
+    this.env(out, vol, 0.002, dur);
+
+    for (const mult of [1, 1.5]) {
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = freq * mult;
+      o.detune.value = mult === 1 ? 0 : 14;      // beating between the two adds bite
+      o.connect(bp);
+      o.start();
+      o.stop(ctx.currentTime + dur + 0.02);
+    }
+    this.noiseBurst(bp, dur * 0.6, 2.2);         // grit
+  }
+
+  /**
+   * Your own aircraft coming apart: a heavy hit, tearing structure, and the cabin
+   * going quiet behind a ringing in your ears. The whole mix ducks under it, which
+   * is most of what sells it as happening *to you* rather than nearby.
+   */
+  playerDeath(pos: THREE.Vector3) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+
+    this.duck.gain.cancelScheduledValues(t);
+    this.duck.gain.setValueAtTime(1, t);
+    this.duck.gain.linearRampToValueAtTime(0.28, t + 0.09);
+    this.duck.gain.linearRampToValueAtTime(1, t + 2.6);
+
+    this.explosion(pos, 1.9);
+
+    // structural tear: resonant noise dragged downwards
+    const tear = this.out(0.8, 0, 0, 0.45);
+    if (tear) {
+      const bp = this.band(tear, 'bandpass', 900, 5.5);
+      bp.frequency.exponentialRampToValueAtTime(110, t + 1.1);
+      this.env(tear, 0.8, 0.01, 1.2);
+      this.noiseBurst(bp, 1.3, 0.9);
+    }
+
+    // sub drop under it
+    const sub = this.out(0.85, 0, 0, 0.1);
+    if (sub) {
+      this.env(sub, 0.85, 0.014, 1.0);
+      this.tone(sub, 'sine', 96, 24, 1.1);
+    }
+
+    // and the ring afterwards
+    const ring = this.out(0.16, 0, 0, 0);
+    if (ring) {
+      const t0 = t + 0.16;
+      ring.gain.cancelScheduledValues(t0);
+      ring.gain.setValueAtTime(0.0001, t0);
+      ring.gain.exponentialRampToValueAtTime(0.16, t0 + 0.05);
+      ring.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.4);
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 3100;
+      o.connect(ring);
+      o.start(t0);
+      o.stop(t0 + 2.5);
+    }
+  }
+
+  /**
+   * Splash — you killed something. Deliberately not positional and deliberately
+   * unlike the rearm chime: a squelch click and a clipped two-note call, so it
+   * reads as a radio confirmation rather than as another world sound.
+   */
+  splash() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    // squelch click opening the channel
+    const click = this.out(0.3, 0, 0, 0.1);
+    if (click) {
+      const bp = this.band(click, 'bandpass', 2200, 1.4);
+      this.env(click, 0.3, 0.001, 0.045);
+      this.noiseBurst(bp, 0.05, 2);
+    }
+
+    // two clipped notes through a narrow band, the way a radio squashes a call
+    [[0, 780], [0.11, 560]].forEach(([delay, freq]) => {
+      const out = this.out(0.34, 0, 0, 0.18);
+      if (!out) return;
+      const bp = this.band(out, 'bandpass', 1500, 1.1);
+      const t = ctx.currentTime + delay;
+      out.gain.cancelScheduledValues(t);
+      out.gain.setValueAtTime(0.0001, t);
+      out.gain.exponentialRampToValueAtTime(0.34, t + 0.006);
+      out.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = freq;
+      o.connect(bp);
+      o.start(t);
+      o.stop(t + 0.18);
+    });
+  }
+
   /* ---------------- continuous state ---------------- */
 
   update(dt: number, player: Aircraft, running: boolean, aircraft: readonly Aircraft[] = []) {
@@ -518,13 +635,15 @@ export class Sound {
 
     this.checkFlybys(player, aircraft);
 
-    // missile inbound: insistent two-tone, and it wins over the lock tone
+    // Missile inbound. A launch warning is not a polite two-tone chime — it is a
+    // harsh buzzer, and it gets more frantic as the round closes, which makes it
+    // carry information rather than just alarm.
     if (player.threat > 0) {
       this.warnBeep -= dt;
       if (this.warnBeep <= 0) {
-        this.warnBeep = 0.26;
-        this.warnToggle = !this.warnToggle;
-        this.beep(this.warnToggle ? 740 : 555, 0.1, 0.26, 'triangle');
+        const close = clamp01(1 - clamp01(player.threatRange / 2600));
+        this.warnBeep = lerp(0.19, 0.062, close);
+        this.rwrPulse(lerp(560, 940, close), lerp(0.055, 0.04, close), 0.3 + close * 0.16);
       }
     } else {
       this.warnBeep = 0;
