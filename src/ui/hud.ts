@@ -33,14 +33,34 @@ export interface HudState {
 
 const ACCENT = '#7fe3b0';
 const WARN = '#ff5a4a';
+
+/**
+ * The HUD is authored to fit exactly this much room and scaled to whatever
+ * window it lands in. Because the scale is the *smaller* of the two ratios,
+ * the layout space is never smaller than this in either axis — which is what
+ * lets every block use fixed offsets and still never collide. Do not add a
+ * lower clamp here: flooring the scale shrinks the layout below the design
+ * size, and the fixed offsets then overlap each other.
+ */
+const HUD_DESIGN_W = 1024;
+const HUD_DESIGN_H = 600;
+/** Only an upper bound, so the HUD does not swallow a very large display. */
+const HUD_SCALE_MAX = 1.35;
 const DIM = 'rgba(127, 227, 176, 0.42)';
 const INK = 'rgba(6, 14, 20, 0.55)';
 
 export class Hud {
   private ctx: CanvasRenderingContext2D;
+  /**
+   * Layout space, not pixels. The HUD is laid out at a fixed design size and
+   * the whole canvas is scaled to the window, so every element moves together
+   * — previously only the radar responded to the viewport and everything else
+   * kept its pixel offsets, which is how the chaff row ended up off-screen.
+   */
   private w = 0;
   private h = 0;
   private dpr = 1;
+  private scale = 1;
   private _v = new THREE.Vector3();
   private time = 0;
 
@@ -54,12 +74,19 @@ export class Hud {
 
   resize() {
     this.dpr = Math.min(2, devicePixelRatio || 1);
-    this.w = innerWidth;
-    this.h = innerHeight;
-    this.canvas.width = Math.floor(this.w * this.dpr);
-    this.canvas.height = Math.floor(this.h * this.dpr);
-    this.canvas.style.width = `${this.w}px`;
-    this.canvas.style.height = `${this.h}px`;
+    const vw = innerWidth;
+    const vh = innerHeight;
+
+    this.scale = Math.min(HUD_SCALE_MAX, vw / HUD_DESIGN_W, vh / HUD_DESIGN_H);
+
+    // Layout happens in scaled units; the transform in draw() maps them to pixels.
+    this.w = vw / this.scale;
+    this.h = vh / this.scale;
+
+    this.canvas.width = Math.floor(vw * this.dpr);
+    this.canvas.height = Math.floor(vh * this.dpr);
+    this.canvas.style.width = `${vw}px`;
+    this.canvas.style.height = `${vh}px`;
   }
 
   /** world -> screen px; null when behind the camera */
@@ -72,7 +99,8 @@ export class Hud {
   draw(s: HudState, dt: number) {
     this.time += dt;
     const c = this.ctx;
-    c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const k = this.dpr * this.scale;
+    c.setTransform(k, 0, 0, k, 0, 0);
     c.clearRect(0, 0, this.w, this.h);
     c.font = '11px "SF Mono", Menlo, monospace';
     c.textBaseline = 'middle';
@@ -513,7 +541,10 @@ export class Hud {
   private throttleBlock(s: HudState) {
     const c = this.ctx;
     const p = s.player;
-    const x = 42, y = this.h - 148, w = 150, h = 12;
+    // anchored off the same bottom margin as the weapons block on the right,
+    // rather than its own magic offset, so the two stay level
+    const x = 42, w = 150, h = 12;
+    const y = this.h - 30 - 118;
 
     const lit = p.burnerActive;
     this.bar(x, y, w, h, p.controls.throttle, lit ? '#ff9d4a' : ACCENT,
@@ -569,18 +600,42 @@ export class Hud {
     const p = s.player;
     const right = this.w - 42;
     const pipW = 8, gap = 5;
+    const rowWidth = (n: number) => n * (pipW + gap);
+
+    const cm: ReadonlyArray<[string, number, number, number, boolean, string]> = [
+      ['FLARE', p.flares, p.frame.flares, CFG.flare.salvo, p.flareCooldown <= 0, '255,209,102'],
+      ['CHAFF', p.chaff, p.frame.chaff, CFG.chaff.salvo, p.chaffCooldown <= 0, '190,208,240'],
+    ];
+
+    // Labels used to sit a fixed 84px in from the right, which the F-22's 16
+    // chaff pips and the F-16's 8 IR pips both ran underneath. Put them clear
+    // of the widest row this airframe can show, so they also line up.
+    const widest = Math.max(
+      ...WEAPON_ORDER.map((id) => rowWidth(p.frame.ammo[id])),
+      ...cm.map(([, , max, salvo]) => rowWidth(Math.floor(max / salvo))),
+    );
+    const labelX = right - widest - 10;
+
+    // One anchor for the whole stack, built upward from the bottom margin. Rows
+    // used to be positioned independently, so the lowest one had 8px of clearance
+    // and adding another would have pushed it off the screen entirely.
+    const cmRow = 16, misRow = 20;
+    const cmTop = this.h - 20 - cm.length * cmRow;
+    const misTop = cmTop - 14 - WEAPON_ORDER.length * misRow;
+    const heatY = misTop - 24;
+    const capY = heatY - 18;
 
     // the cannon has unlimited rounds; heat is what stops you firing
     c.textAlign = 'right';
     c.fillStyle = DIM;
-    c.fillText('CANNON', right, this.h - 122);
+    c.fillText('CANNON', right, capY);
     c.fillStyle = p.gunOverheated ? WARN : p.gunHeat > 0.7 ? '#ff9d4a' : '#dffff0';
     c.font = '15px "SF Mono", Menlo, monospace';
-    c.fillText(p.gunOverheated ? 'OVERHEAT' : `${Math.round(p.gunHeat * 100)}°`, right, this.h - 104);
+    c.fillText(p.gunOverheated ? 'OVERHEAT' : `${Math.round(p.gunHeat * 100)}°`, right, heatY);
     c.font = '11px "SF Mono", Menlo, monospace';
 
     // missiles: both types listed, the selected one highlighted
-    let wy = this.h - 84;
+    let wy = misTop;
     for (const id of WEAPON_ORDER) {
       const spec = WEAPONS[id];
       const rounds = p.ammo[id];
@@ -589,7 +644,7 @@ export class Hud {
 
       c.textAlign = 'right';
       c.fillStyle = col;
-      c.fillText(`${active ? '▸ ' : ''}${spec.tag}`, right - CFG.missile.pipWidth, wy);
+      c.fillText(`${active ? '▸ ' : ''}${spec.tag}`, labelX, wy);
 
       const capacity = p.frame.ammo[id];
       for (let i = 0; i < capacity; i++) {
@@ -599,31 +654,27 @@ export class Hud {
           : 'rgba(127,227,176,0.14)';
         c.fillRect(x, wy - 5, pipW, 10);
       }
-      wy += 20;
+      wy += misRow;
     }
 
     // reload bar for whichever type is selected
     if (p.missileCooldown > 0 && p.missiles > 0) {
       const spec = p.weaponSpec;
       const t = 1 - clamp01(p.missileCooldown / spec.reload);
-      const w = p.frame.ammo[p.weapon] * (pipW + gap);
+      const w = rowWidth(p.frame.ammo[p.weapon]);
       c.fillStyle = '#ffd166';
-      c.fillRect(right - w, wy - 2, w * t, 2.5);
+      c.fillRect(right - w, wy - 8, w * t, 2.5);
     }
 
-    // flares, counted in salvos since that is how they are dispensed
-    // countermeasures: flares defeat infrared, chaff defeats radar
-    const cm: ReadonlyArray<[string, number, number, number, boolean, string]> = [
-      ['FLARE', p.flares, p.frame.flares, CFG.flare.salvo, p.flareCooldown <= 0, '255,209,102'],
-      ['CHAFF', p.chaff, p.frame.chaff, CFG.chaff.salvo, p.chaffCooldown <= 0, '190,208,240'],
-    ];
-    let cy = this.h - 34;
+    // countermeasures: flares defeat infrared, chaff defeats radar.
+    // counted in salvos, since that is how they are dispensed
+    let cy = cmTop;
     for (const [label, held, max, salvo, ready, rgb] of cm) {
       const salvos = Math.floor(held / salvo);
       const maxSalvos = Math.floor(max / salvo);
       c.fillStyle = ready && salvos > 0 ? DIM : 'rgba(127,227,176,0.22)';
       c.textAlign = 'right';
-      c.fillText(label, right - CFG.missile.pipWidth, cy + 8);
+      c.fillText(label, labelX, cy + 5);
       for (let i = 0; i < maxSalvos; i++) {
         const x = right - (maxSalvos - i) * (pipW + gap);
         c.fillStyle = i < salvos
@@ -631,7 +682,7 @@ export class Hud {
           : `rgba(${rgb},0.14)`;
         c.fillRect(x, cy, pipW, 10);
       }
-      cy += 16;
+      cy += cmRow;
     }
   }
 
