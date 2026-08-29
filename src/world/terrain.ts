@@ -2,12 +2,25 @@ import * as THREE from 'three';
 import { CFG } from '../core/config';
 import { MapSpec } from './maps';
 
+/** A piece of world with real 3D structure, which a heightmap cannot represent. */
+export interface SolidVolume {
+  contains(x: number, z: number): boolean;
+  heightAt(x: number, z: number): number;
+  isSolid(x: number, y: number, z: number, clearance: number): boolean;
+  floorAt(x: number, y: number, z: number): number;
+}
+
 export class Terrain {
   readonly mesh: THREE.Mesh;
   readonly water: THREE.Mesh;
   private waterMat: THREE.ShaderMaterial;
   /** anything standing on the ground that should also be solid, e.g. buildings */
   private obstacles: ((x: number, z: number) => number) | null = null;
+  /**
+   * A region the heightmap cannot describe — somewhere with air underneath rock.
+   * Collision and the camera floor defer to it inside its footprint.
+   */
+  private volume: SolidVolume | null = null;
 
   constructor(readonly spec: MapSpec) {
     const size = CFG.world.size;
@@ -139,9 +152,31 @@ export class Terrain {
     this.obstacles = fn;
   }
 
+  /** Register a region with genuine 3D structure, such as a hollow volcano. */
+  setVolume(v: SolidVolume) {
+    this.volume = v;
+    // it still reports a height, so AI avoidance and the map at large treat it
+    // as the mountain it looks like from outside
+    this.setObstacles((x, z) => v.heightAt(x, z));
+  }
+
+  /**
+   * Highest solid surface beneath a point. The camera floor uses this, so flying
+   * through a cavern does not shove the camera up onto the mountain above it.
+   */
+  floorAt(p: THREE.Vector3): number {
+    if (this.volume && this.volume.contains(p.x, p.z)) {
+      return this.volume.floorAt(p.x, p.y, p.z);
+    }
+    return this.height(p.x, p.z);
+  }
+
   /** True when a point is inside solid ground (or in the water). */
   collides(p: THREE.Vector3, clearance = 0): boolean {
     if (p.y <= clearance) return true;
+    if (this.volume && this.volume.contains(p.x, p.z)) {
+      return this.volume.isSolid(p.x, p.y, p.z, clearance);
+    }
     return p.y - clearance <= this.height(p.x, p.z);
   }
 

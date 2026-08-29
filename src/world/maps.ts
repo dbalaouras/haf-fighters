@@ -38,7 +38,7 @@ export interface MapSpec {
   fog: { color: number; near: number; far: number };
 
   /** built after the terrain, for anything map-specific standing on it */
-  scenery?: 'city';
+  scenery?: 'city' | 'volcano';
 }
 
 export type MapId = 'CORAL' | 'CITY';
@@ -75,7 +75,8 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 /* ---------------- Coral Range: the original islands at dawn ---------------- */
 
 const ISLANDS: ReadonlyArray<{ x: number; z: number; r: number; h: number }> = [
-  { x: 0, z: 0, r: 3100, h: 1500 },
+  // a broad low shield: the volcano itself is real geometry sitting on top of it
+  { x: 0, z: 0, r: 3500, h: 190 },
   { x: -6200, z: -3400, r: 2100, h: 900 },
   { x: 5600, z: 3900, r: 2400, h: 1050 },
   { x: -4200, z: 6100, r: 1500, h: 620 },
@@ -86,7 +87,7 @@ const ISLANDS: ReadonlyArray<{ x: number; z: number; r: number; h: number }> = [
 const CORAL: MapSpec = {
   id: 'CORAL',
   name: 'CORAL RANGE — DAWN',
-  blurb: 'Open water, volcanic islands, long sightlines',
+  blurb: 'Islands, open water, and a volcano you can fly through',
 
   baseHeight(x, z) {
     let mask = 0;
@@ -122,6 +123,7 @@ const CORAL: MapSpec = {
   water: { deep: 0x11405f, shallow: 0x49a8cc, specular: 0.85, fogTint: new THREE.Vector3(0.62, 0.72, 0.85) },
   light: { sunColor: 0xfff3dd, sunIntensity: 2.1, skyColor: 0xa8ccf0, groundColor: 0x2a3a30, hemiIntensity: 1.15 },
   fog: { color: 0x9db8d4, near: 3000, far: 22000 },
+  scenery: 'volcano',
 };
 
 /* ---------------- Neon Delta: a river city after dark ---------------- */

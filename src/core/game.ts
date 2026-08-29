@@ -6,6 +6,7 @@ import { Terrain } from '../world/terrain';
 import { Sky } from '../world/sky';
 import { WaypointSystem } from '../world/waypoints';
 import { City } from '../world/city';
+import { Volcano } from '../world/volcano';
 import { MapId, MAPS, MapSpec } from '../world/maps';
 import { Aircraft } from '../entities/aircraft';
 import { Pilot } from '../ai/pilot';
@@ -38,6 +39,7 @@ export class Game {
   private sky!: Sky;
   private waypoints!: WaypointSystem;
   private city: City | null = null;
+  private volcano: Volcano | null = null;
   private mapLights: THREE.Light[] = [];
   mapId!: MapId;
   private fx = new Fx();
@@ -140,6 +142,11 @@ export class Game {
       this.city.dispose();
       this.city = null;
     }
+    if (this.volcano) {
+      this.scene.remove(this.volcano.group);
+      this.volcano.dispose();
+      this.volcano = null;
+    }
 
     this.terrain = new Terrain(spec);
     this.sky = new Sky(spec);
@@ -151,6 +158,10 @@ export class Game {
       this.city = new City(spec);
       this.terrain.setObstacles(this.city.solidHeight);
       this.scene.add(this.city.group);
+    } else if (spec.scenery === 'volcano') {
+      this.volcano = new Volcano();
+      this.terrain.setVolume(this.volcano);
+      this.scene.add(this.volcano.group);
     }
 
     this.waypoints = new WaypointSystem(this.terrain);
@@ -293,6 +304,7 @@ export class Game {
       (hit) => this.applyDamage(hit.victim, hit.shooter, hit.damage),
       (at) => this.audio.explosion(at, 1));
 
+    this.volcano?.update(dt);
     this.waypoints.update(dt, this.aircraft, (a) => {
       a.restock();
       this.audio.rearm(a.pos);
@@ -523,7 +535,7 @@ export class Game {
       }
 
       // never let the camera sink into the ground
-      const floor = Math.max(6, this.terrain.height(this.camPos.x, this.camPos.z) + 14);
+      const floor = Math.max(6, this.terrain.floorAt(this.camPos) + 14);
       if (this.camPos.y < floor) this.camPos.y = floor;
 
       this.camera.position.copy(this.camPos);

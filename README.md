@@ -176,8 +176,21 @@ below it.
 Two, picked on the title screen. The choice is saved, and switching rebuilds the
 world in place rather than reloading.
 
-**Coral Range — Dawn.** The original: open water, volcanic islands rising to 1.5 km,
-long sightlines and a bright sky.
+**Coral Range — Dawn.** Open water, islands, long sightlines — and a **hollow
+volcano** in the middle that you can fly inside. Three bored tunnels punch through
+the shell at 700 m, and the crater is open, so you can enter level through an
+opening or dive in over the rim. Inside is a chamber roughly 2.5 km across with a
+lava floor that lights it, and the tunnel mouths glow orange from outside.
+
+It is a good place to break a lock: a missile that follows you into a tunnel and
+does not turn as well as you do hits rock.
+
+A heightmap cannot describe this — `height(x, z)` is single-valued, so it has no way
+to say "rock here, open air beneath it". The volcano is therefore its own mesh with
+an analytic 3D solidity test behind it, registered with the terrain as a
+`SolidVolume`. Collision, the camera floor and AI avoidance all defer to it inside
+its footprint, so missiles, bullets and the chase camera all behave correctly in the
+chamber without any of them knowing what a volcano is.
 
 **Neon Delta — Night.** A river city after dark. Around 3,300 lit towers on both
 banks, a meandering river, and a suspension bridge you can fly under — the deck sits
@@ -310,8 +323,10 @@ flies into a hill.
 ## Built so far
 
 - [x] Vite + TypeScript + Three.js scaffold
-- [x] Two maps — day islands and a night river city with a flyable-under bridge —
-      switchable from the title screen, driven by a map spec
+- [x] Two maps — day islands with a fly-through hollow volcano, and a night river
+      city with a flyable-under bridge — switchable from the title screen
+- [x] AI terrain lookahead, so it pulls up for steep ground ahead of it rather than
+      only reacting to what is directly beneath
 - [x] Procedural terrain, shader ocean, sky, stars and cloud layer
 - [x] Afterburner with a fuel budget, and an air brake, in place of a throttle axis
 - [x] Arcade flight model: bank-to-turn coordinated turns with auto-levelling,

@@ -67,7 +67,7 @@ export class Pilot {
     }
 
     // --- state selection ---
-    const agl = jet.pos.y - Math.max(0, terrain.height(jet.pos.x, jet.pos.z));
+    const agl = jet.pos.y - Math.max(0, this.groundAhead(jet, terrain));
     const sinkRate = jet.forward(_tmp).y * jet.speed;
 
     if (agl < CFG.ai.minAltitude && sinkRate < 20) {
@@ -254,9 +254,24 @@ export class Pilot {
     c.roll = clamp(c.roll + j, -1, 1);
   }
 
+  /**
+   * Highest ground the jet is about to be over, not merely what is under it now.
+   * Sampling only underneath is fine over rolling islands but useless against
+   * anything steep — by the time a 50-degree flank is beneath you it is too late.
+   */
+  private groundAhead(jet: Aircraft, terrain: Terrain): number {
+    const f = jet.forward(_tmp);
+    let g = terrain.height(jet.pos.x, jet.pos.z);
+    for (const d of [700, 1500]) {
+      const h = terrain.height(jet.pos.x + f.x * d, jet.pos.z + f.z * d);
+      if (h > g) g = h;
+    }
+    return g;
+  }
+
   /** Bias the steering vector back into the usable altitude band. */
   private limitAltitude(dir: THREE.Vector3, jet: Aircraft, terrain: Terrain) {
-    const ground = Math.max(0, terrain.height(jet.pos.x, jet.pos.z));
+    const ground = Math.max(0, this.groundAhead(jet, terrain));
     const agl = jet.pos.y - ground;
     if (agl < CFG.ai.minAltitude * 1.8) dir.y += (CFG.ai.minAltitude * 1.8 - agl) * 0.4;
     if (jet.pos.y > CFG.ai.maxAltitude) dir.y -= (jet.pos.y - CFG.ai.maxAltitude) * 0.5;
