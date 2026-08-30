@@ -38,7 +38,7 @@ export const CFG = {
 
   /** Flight-assist model: bank-to-turn with auto-levelling (the default feel). */
   assist: {
-    maxBank: 78 * Math.PI / 180,  // bank held at full roll input
+    maxBank: 90 * Math.PI / 180,  // bank held at full roll input — knife-edge reads best
     bankGain: 2.6,                // how hard the aircraft chases the commanded bank
     maxTurn: 1.05,                // rad/s of heading change at 90 deg of bank
     levelGain: 1.9,               // nose-to-horizon recovery when pitch is released
