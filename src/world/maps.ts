@@ -273,17 +273,18 @@ const HARBOUR_MAP: MapSpec = {
 
   groundColor(h, x, z, c) {
     if (h < 4) { c.setRGB(0.06, 0.08, 0.10); return; }                  // basin floor
-    if (armOffset(x, z) < HARBOUR.arm.halfWidth + 20) { c.setRGB(0.26, 0.25, 0.24); return; }
+    if (armOffset(x, z) < HARBOUR.arm.halfWidth + 20) { c.setRGB(0.15, 0.145, 0.14); return; }
     const d = inland(x, z);
     if (d >= 0 && d < HARBOUR.quayDepth) {
-      // dock concrete, stained in patches
-      const w = fbm(x * 0.004, z * 0.004, 2) * 0.10;
-      c.setRGB(0.30 + w, 0.29 + w, 0.28 + w);
+      // tarmac, not concrete: the apron fills the foreground on every low pass,
+      // and a light grey there washed the whole map out
+      const w = fbm(x * 0.004, z * 0.004, 2) * 0.055;
+      c.setRGB(0.105 + w, 0.10 + w, 0.10 + w);
       return;
     }
-    if (h > 300) { c.setRGB(0.20, 0.19, 0.17); return; }                // inland hills
+    if (h > 300) { c.setRGB(0.115, 0.11, 0.10); return; }               // inland hills
     const t = fbm(x * 0.0018, z * 0.0018, 2);
-    c.setRGB(0.19 + t * 0.09, 0.18 + t * 0.07, 0.17 + t * 0.05);
+    c.setRGB(0.11 + t * 0.055, 0.105 + t * 0.045, 0.10 + t * 0.035);
   },
 
   // Sun barely up and BEHIND the skyline, so the towers read as rim-lit
