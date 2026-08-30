@@ -1,15 +1,22 @@
 import * as THREE from 'three';
-import { armTip, HARBOUR, inland, MapSpec } from './maps';
+import { armTip, channelCut, HARBOUR, inland, MapSpec } from './maps';
 import { rand } from '../core/mathx';
 
 /**
  * The working half of Piraeus Dawn: gantry cranes along the quay, container
  * stacks behind them, hulls at their berths, and a lighthouse on the mole.
  *
- * The cranes are the point. Their booms sit at 60-120 m with clear air beneath,
- * which is a shape no other map offers — the volcano is something to go round
- * and the bridge is a single arch, but a crane line is a row of gates.
+ * Everything here is solid from the ground up, because obstacles are a height
+ * field: registering a top makes the whole column beneath it solid. So the
+ * crane booms and the bridge deck are things to go over or around, not gates to
+ * fly through — there is no air under them, however much the geometry suggests
+ * otherwise. Real underpasses would need the 3D solidity the volcano used to
+ * carry, and that was deleted along with its tunnels.
  */
+
+interface Berth {
+  x: number; z: number; ang: number; len: number;
+}
 
 interface Solid {
   x: number; z: number;
@@ -34,7 +41,10 @@ export class Harbour {
 
     this.group.add(this.buildCranes(spec, steel));
     this.group.add(this.buildContainers(spec));
-    this.group.add(this.buildShips(spec, dark, rust));
+    const berths = this.buildPiers(spec);
+    this.group.add(berths.group);
+    this.group.add(this.buildShips(berths.berths, dark, rust));
+    this.group.add(this.buildBridge(spec, steel, dark));
 
     const light = this.buildLighthouse(steel);
     this.group.add(light.group);
@@ -55,7 +65,10 @@ export class Harbour {
   /** Points along the quay, spaced out, each with the shore's local direction. */
   private quayLine(step: number): Array<{ x: number; z: number; ang: number }> {
     const out: Array<{ x: number; z: number; ang: number }> = [];
+    const c = HARBOUR.channel;
     for (let x = -8200; x <= 8200; x += step) {
+      // nothing stands across the mouth of the channel
+      if (Math.abs(x - c.x) < c.halfWidth + 200) continue;
       const z = HARBOUR.shore(x);
       const dz = HARBOUR.shore(x + 40) - HARBOUR.shore(x - 40);
       out.push({ x, z, ang: Math.atan2(dz, 80) });
@@ -64,9 +77,9 @@ export class Harbour {
   }
 
   /**
-   * A portal crane: two legs, a sill beam, and a boom cantilevered out over the
-   * water. Built as one merged geometry per crane and added to the solid list so
-   * flying through the gap is a real thing you can get wrong.
+   * A portal crane: legs, portal beams, and a boom cantilevered out over the
+   * water. One merged geometry each, and solid, so the crane line is a wall of
+   * obstacles down the waterfront rather than scenery to clip through.
    */
   private buildCranes(spec: MapSpec, mat: THREE.Material): THREE.Group {
     const g = new THREE.Group();
@@ -154,29 +167,113 @@ export class Harbour {
     return mesh;
   }
 
-  /** A few hulls at their berths, long enough to read as ships from altitude. */
-  private buildShips(spec: MapSpec, hull: THREE.Material, deck: THREE.Material): THREE.Group {
+
+  /**
+   * Finger piers running out into the basin, which is what turns a shoreline
+   * into a harbour: berths with water either side rather than one long wall.
+   */
+  private buildPiers(spec: MapSpec): { group: THREE.Group; berths: Berth[] } {
     const g = new THREE.Group();
-    for (const p of this.quayLine(1500)) {
-      if (Math.random() < 0.4) continue;
-      const len = rand(210, 320), beam = rand(34, 46);
-      const z = p.z - beam - 26;                       // moored alongside, in the water
-      const parts = [
-        boxAt(beam, 26, len, 0, 0, 0),
-        boxAt(beam * 0.72, 20, 46, 0, 22, len * 0.3),  // superstructure
-      ];
-      const merged = mergeAll([parts[0]]);
+    const berths: Berth[] = [];
+    const deck = new THREE.MeshLambertMaterial({ color: 0x2c2f33, flatShading: true });
+    const LEN = 330, HALF_W = 26;
+
+    for (const p of this.quayLine(1150)) {
+      if (channelCut(p.x, p.z) > 0.05) continue;
+      const len = LEN * rand(0.8, 1.15);
+      // out into the water, which is -z of the shoreline
+      const parts = [boxAt(HALF_W * 2, 16, len, 0, 0, -len / 2 - 40)];
+      for (let i = 0; i < 5; i++) {
+        // piles under the deck, so it does not read as a floating slab
+        const t = -40 - (i + 0.5) * (len / 5);
+        parts.push(boxAt(7, 40, 7, -HALF_W + 5, -20, t));
+        parts.push(boxAt(7, 40, 7, HALF_W - 5, -20, t));
+      }
+      const merged = mergeAll(parts);
       merged.rotateY(p.ang);
-      merged.translate(p.x, HARBOUR.quayY - 9, z);
+      merged.translate(p.x, HARBOUR.quayY, p.z);
+      g.add(new THREE.Mesh(merged, deck));
+
+      this.solids.push({
+        x: p.x, z: p.z - len / 2 - 40,
+        halfX: HALF_W + 4, halfZ: len / 2 + 40, top: HARBOUR.quayY + 8,
+      });
+      // a berth either side of the finger
+      berths.push({ x: p.x - HALF_W - 30, z: p.z - len / 2 - 40, ang: p.ang, len });
+      if (Math.random() < 0.55) berths.push({ x: p.x + HALF_W + 30, z: p.z - len / 2 - 40, ang: p.ang, len });
+    }
+    void spec;
+    return { group: g, berths };
+  }
+
+  /**
+   * A plate-girder bridge over the channel: squat and industrial, where Neon
+   * Delta has a suspension span. Lit along the deck for the same reason that
+   * one is — a dark girder over dark water at dawn is invisible until you are
+   * in it, and it blocks the channel from the water all the way up.
+   */
+  private buildBridge(spec: MapSpec, steel: THREE.Material, dark: THREE.Material): THREE.Group {
+    const g = new THREE.Group();
+    const c = HARBOUR.channel;
+    const z = HARBOUR.shore(c.x) + c.bridgeAt;
+    const span = (c.halfWidth + 300) * 2;
+
+    const deck = mergeAll([
+      boxAt(span, 9, 78, 0, 0, 0),
+      boxAt(span, 16, 8, 0, 10, -35),        // parapet girders
+      boxAt(span, 16, 8, 0, 10, 35),
+    ]);
+    deck.translate(c.x, c.deckY, z);
+    g.add(new THREE.Mesh(deck, steel));
+
+    // pier bents: two in the water, two on the banks
+    for (const dx of [-c.halfWidth - 190, -c.halfWidth * 0.5, c.halfWidth * 0.5, c.halfWidth + 190]) {
+      const ground = spec.baseHeight(c.x + dx, z);
+      const h = c.deckY - ground;
+      if (h <= 0) continue;
+      const pier = mergeAll([
+        boxAt(34, h, 30, 0, h / 2, 0),
+        boxAt(52, 10, 40, 0, h - 4, 0),      // pier cap
+      ]);
+      pier.translate(c.x + dx, ground, z);
+      g.add(new THREE.Mesh(pier, dark));
+      this.solids.push({ x: c.x + dx, z, halfX: 26, halfZ: 20, top: ground + h });
+    }
+
+    // deck lamps, so the span reads against the water before you are committed
+    const lampGeo = new THREE.SphereGeometry(3.4, 6, 5);
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+    for (let i = -6; i <= 6; i++) {
+      const lamp = new THREE.Mesh(lampGeo, lampMat);
+      lamp.position.set(c.x + i * (span / 13), c.deckY + 22, z);
+      g.add(lamp);
+    }
+    const glow = new THREE.PointLight(0xffc890, 1.6, 1800, 1.5);
+    glow.position.set(c.x, c.deckY + 30, z);
+    g.add(glow);
+
+    this.solids.push({ x: c.x, z, halfX: span / 2, halfZ: 39, top: c.deckY + 18 });
+    return g;
+  }
+
+  /** A few hulls at their berths, long enough to read as ships from altitude. */
+  private buildShips(berths: Berth[], hull: THREE.Material, deckMat: THREE.Material): THREE.Group {
+    const g = new THREE.Group();
+    for (const b of berths) {
+      if (Math.random() < 0.35) continue;                 // not every berth is taken
+      const len = b.len * rand(0.7, 0.95), beam = rand(30, 42);
+      const parts = [boxAt(beam, 30, len, 0, 0, 0)];
+      const merged = mergeAll(parts);
+      merged.rotateY(b.ang);
+      merged.translate(b.x, HARBOUR.quayY - 11, b.z);
       g.add(new THREE.Mesh(merged, hull));
 
-      const sup = mergeAll([parts[1]]);
-      sup.rotateY(p.ang);
-      sup.translate(p.x, HARBOUR.quayY - 9, z);
-      g.add(new THREE.Mesh(sup, deck));
+      const sup = mergeAll([boxAt(beam * 0.7, 24, 44, 0, 26, len * 0.28)]);
+      sup.rotateY(b.ang);
+      sup.translate(b.x, HARBOUR.quayY - 11, b.z);
+      g.add(new THREE.Mesh(sup, deckMat));
 
-      this.solids.push({ x: p.x, z, halfX: len / 2, halfZ: beam, top: HARBOUR.quayY + 32 });
-      void spec;
+      this.solids.push({ x: b.x, z: b.z, halfX: beam, halfZ: len / 2, top: HARBOUR.quayY + 34 });
     }
     return g;
   }

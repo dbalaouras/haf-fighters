@@ -216,7 +216,26 @@ export const HARBOUR = {
   basinFloor: -170,
   /** the breakwater arm, an arc with a gap at its west end for the harbour mouth */
   arm: { cx: 1900, cz: -1200, r: 4200, halfWidth: 80, y: 22, from: 0.55, to: 2.35 },
+  /**
+   * The inner channel, cutting inland off the basin. 380 m of half-width is
+   * about seven terrain cells across, which is the least that reads as water
+   * rather than a crease — the Neon Delta river uses 430 for the same reason.
+   */
+  channel: { x: 1500, halfWidth: 380, reach: 3400, depth: -58, bridgeAt: 1100, deckY: 92 },
 };
+
+/**
+ * How much the channel has been dug out at a point: 1 in open water down the
+ * middle, easing to 0 at the banks, at the mouth and at the turning basin.
+ */
+export function channelCut(x: number, z: number): number {
+  const c = HARBOUR.channel;
+  const across = 1 - smooth(clamp01(Math.abs(x - c.x) / c.halfWidth));
+  if (across <= 0) return 0;
+  const d = inland(x, z);
+  const along = smooth(clamp01((d + 500) / 700)) * smooth(clamp01((c.reach - d) / 800));
+  return across * along;
+}
 
 /** metres inland from the shoreline; negative out over the water */
 export function inland(x: number, z: number): number {
@@ -242,7 +261,7 @@ export function armTip(): { x: number; z: number } {
 const HARBOUR_MAP: MapSpec = {
   id: 'HARBOUR',
   name: 'PIRAEUS DAWN — FIRST LIGHT',
-  blurb: 'A working harbour, backlit. Cranes to duck, open sea past the mole.',
+  blurb: 'A backlit harbour: docks, a bridge over the channel, open sea past the mole',
 
   baseHeight(x, z) {
     const a = HARBOUR.arm;
@@ -260,20 +279,29 @@ const HARBOUR_MAP: MapSpec = {
         // shoal up against the outside of the mole
         y += (a.y - y) * smooth(1 - (off - a.halfWidth) / 260) * 0.55;
       }
-      return y;
+      const cut = channelCut(x, z);
+      return cut > 0 ? Math.min(y, HARBOUR.channel.depth) : y;
     }
-    if (d < HARBOUR.quayDepth) return HARBOUR.quayY;            // flat working apron
-    const rise = clamp01((d - HARBOUR.quayDepth) / 900);
-    const plain = HARBOUR.quayY + (HARBOUR.plainY - HARBOUR.quayY) * smooth(rise);
-    // hills well inland, so the skyline has something behind it
-    const far = clamp01((d - 4000) / 6000);
-    const hills = fbm(x * 0.00018, z * 0.00018, 4) * 1150 * far * far;
-    return plain + hills + fbm(x * 0.0012, z * 0.0012, 3) * 7;
+    let y: number;
+    if (d < HARBOUR.quayDepth) {
+      y = HARBOUR.quayY;                                        // flat working apron
+    } else {
+      const rise = clamp01((d - HARBOUR.quayDepth) / 900);
+      const plain = HARBOUR.quayY + (HARBOUR.plainY - HARBOUR.quayY) * smooth(rise);
+      // hills well inland, so the skyline has something behind it
+      const far = clamp01((d - 4000) / 6000);
+      const hills = fbm(x * 0.00018, z * 0.00018, 4) * 1150 * far * far;
+      y = plain + hills + fbm(x * 0.0012, z * 0.0012, 3) * 7;
+    }
+    // dredge the inner channel through whatever the land was doing
+    const cut = channelCut(x, z);
+    return cut > 0 ? y + (HARBOUR.channel.depth - y) * cut : y;
   },
 
   groundColor(h, x, z, c) {
     if (h < 4) { c.setRGB(0.06, 0.08, 0.10); return; }                  // basin floor
     if (armOffset(x, z) < HARBOUR.arm.halfWidth + 20) { c.setRGB(0.15, 0.145, 0.14); return; }
+    if (channelCut(x, z) > 0.2) { c.setRGB(0.05, 0.07, 0.09); return; }   // channel bed
     const d = inland(x, z);
     if (d >= 0 && d < HARBOUR.quayDepth) {
       // tarmac, not concrete: the apron fills the foreground on every low pass,
@@ -304,7 +332,12 @@ const HARBOUR_MAP: MapSpec = {
     // towers stand back from the working apron, and never on the mole
     keepClear: (x, z) => {
       const d = inland(x, z);
-      return d < HARBOUR.quayDepth + 60 || armOffset(x, z) < HARBOUR.arm.halfWidth + 200;
+      if (d < HARBOUR.quayDepth + 60) return true;                    // working apron
+      if (armOffset(x, z) < HARBOUR.arm.halfWidth + 200) return true; // the mole
+      const c = HARBOUR.channel;
+      // the channel, its wharves, and the ground the bridge lands on
+      if (Math.abs(x - c.x) < c.halfWidth + 260 && d > -400 && d < c.reach + 300) return true;
+      return false;
     },
     landmark: 'harbour',
     litWindows: false,
