@@ -53,7 +53,7 @@ const DEFAULTS: SettingsData = {
   invertPitch: false,
   invertRoll: false,
   assist: true,
-  sensitivity: 0.35,
+  sensitivity: 0.15,
   volume: 0.7,
   muted: false,
   cullCity: false,
