@@ -38,10 +38,21 @@ export interface MapSpec {
   fog: { color: number; near: number; far: number };
 
   /** built after the terrain, for anything map-specific standing on it */
-  scenery?: 'city' | 'volcano';
+  scenery?: 'city' | 'volcano' | 'harbour';
+  /**
+   * Where a built-up map may not put towers, and what landmark it gets. The
+   * tower field itself used to hard-code Neon Delta's river and bridge; moving
+   * that into the spec is what lets a waterfront reuse the same instancing.
+   */
+  built?: {
+    keepClear(x: number, z: number): boolean;
+    landmark: 'bridge' | 'harbour';
+    /** lit windows everywhere, or only the few that are up at dawn */
+    litWindows: boolean;
+  };
 }
 
-export type MapId = 'CORAL' | 'CITY';
+export type MapId = 'CORAL' | 'CITY' | 'HARBOUR';
 
 /* ---------------- shared noise ---------------- */
 
@@ -184,7 +195,120 @@ const CITY: MapSpec = {
   light: { sunColor: 0x9fb4e6, sunIntensity: 0.5, skyColor: 0x2a3556, groundColor: 0x140f18, hemiIntensity: 0.5 },
   fog: { color: 0x121a2b, near: 2200, far: 17000 },
   scenery: 'city',
+  built: {
+    keepClear: (x, z) => riverOffset(x, z) < RIVER.halfWidth + 220
+      || (Math.abs(x) < 240 && riverOffset(x, z) < 820),
+    landmark: 'bridge',
+    litWindows: true,
+  },
 };
 
-export const MAPS: Record<MapId, MapSpec> = { CORAL, CITY };
-export const MAP_ORDER: readonly MapId[] = ['CORAL', 'CITY'];
+
+/* ---------------- Piraeus Dawn: a working harbour at first light ---------------- */
+
+export const HARBOUR = {
+  /** the shoreline, as a z for any x — a shallow bay opening south */
+  shore: (x: number) => -700 + 1250 * Math.sin(x / 4600) - 900 * Math.cos(x / 9000),
+  /** working quay: flat, and kept clear of towers so the cranes have the frontage */
+  quayDepth: 420,
+  quayY: 15,
+  plainY: 64,
+  basinFloor: -170,
+  /** the breakwater arm, an arc with a gap at its west end for the harbour mouth */
+  arm: { cx: 1900, cz: -1200, r: 4200, halfWidth: 80, y: 22, from: 0.55, to: 2.35 },
+};
+
+/** metres inland from the shoreline; negative out over the water */
+export function inland(x: number, z: number): number {
+  return z - HARBOUR.shore(x);
+}
+
+/** How far a point sits from the centreline of the breakwater arm, or Infinity. */
+export function armOffset(x: number, z: number): number {
+  const a = HARBOUR.arm;
+  const dx = x - a.cx, dz = z - a.cz;
+  let th = Math.atan2(dz, dx);
+  if (th < 0) th += Math.PI * 2;
+  if (th < a.from || th > a.to) return Infinity;
+  return Math.abs(Math.hypot(dx, dz) - a.r);
+}
+
+/** World position of the breakwater tip, where the lighthouse stands. */
+export function armTip(): { x: number; z: number } {
+  const a = HARBOUR.arm;
+  return { x: a.cx + Math.cos(a.to) * a.r, z: a.cz + Math.sin(a.to) * a.r };
+}
+
+const HARBOUR_MAP: MapSpec = {
+  id: 'HARBOUR',
+  name: 'PIRAEUS DAWN — FIRST LIGHT',
+  blurb: 'A working harbour, backlit. Cranes to duck, open sea past the mole.',
+
+  baseHeight(x, z) {
+    const a = HARBOUR.arm;
+    const off = armOffset(x, z);
+    if (off < a.halfWidth) {
+      // the mole itself, with its flanks tumbling into the water
+      return a.y - smooth(clamp01(off / a.halfWidth)) * 6;
+    }
+    const d = inland(x, z);
+    if (d < 0) {
+      // basin, deepening away from the shore
+      const deep = clamp01(-d / 2600);
+      let y = HARBOUR.quayY - 4 + (HARBOUR.basinFloor - HARBOUR.quayY) * smooth(deep);
+      if (off < a.halfWidth + 260) {
+        // shoal up against the outside of the mole
+        y += (a.y - y) * smooth(1 - (off - a.halfWidth) / 260) * 0.55;
+      }
+      return y;
+    }
+    if (d < HARBOUR.quayDepth) return HARBOUR.quayY;            // flat working apron
+    const rise = clamp01((d - HARBOUR.quayDepth) / 900);
+    const plain = HARBOUR.quayY + (HARBOUR.plainY - HARBOUR.quayY) * smooth(rise);
+    // hills well inland, so the skyline has something behind it
+    const far = clamp01((d - 4000) / 6000);
+    const hills = fbm(x * 0.00018, z * 0.00018, 4) * 1150 * far * far;
+    return plain + hills + fbm(x * 0.0012, z * 0.0012, 3) * 7;
+  },
+
+  groundColor(h, x, z, c) {
+    if (h < 4) { c.setRGB(0.06, 0.08, 0.10); return; }                  // basin floor
+    if (armOffset(x, z) < HARBOUR.arm.halfWidth + 20) { c.setRGB(0.26, 0.25, 0.24); return; }
+    const d = inland(x, z);
+    if (d >= 0 && d < HARBOUR.quayDepth) {
+      // dock concrete, stained in patches
+      const w = fbm(x * 0.004, z * 0.004, 2) * 0.10;
+      c.setRGB(0.30 + w, 0.29 + w, 0.28 + w);
+      return;
+    }
+    if (h > 300) { c.setRGB(0.20, 0.19, 0.17); return; }                // inland hills
+    const t = fbm(x * 0.0018, z * 0.0018, 2);
+    c.setRGB(0.19 + t * 0.09, 0.18 + t * 0.07, 0.17 + t * 0.05);
+  },
+
+  // Sun barely up and BEHIND the skyline, so the towers read as rim-lit
+  // silhouettes and the basin holds its mist. Coral Range owns the other
+  // early morning, facing into a clear sunrise; these two must not blur.
+  sky: {
+    top: 0x16305c, mid: 0x5c7098, horizon: 0xe0a878,
+    light: new THREE.Vector3(-0.34, 0.115, 0.93).normalize(),
+    discPower: 4200, discStrength: 5.2, haloStrength: 0.8, discColor: 0xffc07a,
+    stars: 120, clouds: 260, cloudColor: 0xffd8bc, cloudOpacity: 0.5,
+  },
+  water: { deep: 0x122232, shallow: 0x3d5f74, specular: 1.3, fogTint: new THREE.Vector3(0.80, 0.70, 0.66) },
+  light: { sunColor: 0xffc28a, sunIntensity: 1.5, skyColor: 0xa9b6cc, groundColor: 0x2b2620, hemiIntensity: 0.95 },
+  fog: { color: 0xc0a291, near: 1800, far: 19000 },
+  scenery: 'harbour',
+  built: {
+    // towers stand back from the working apron, and never on the mole
+    keepClear: (x, z) => {
+      const d = inland(x, z);
+      return d < HARBOUR.quayDepth + 60 || armOffset(x, z) < HARBOUR.arm.halfWidth + 200;
+    },
+    landmark: 'harbour',
+    litWindows: false,
+  },
+};
+
+export const MAPS: Record<MapId, MapSpec> = { CORAL, CITY, HARBOUR: HARBOUR_MAP };
+export const MAP_ORDER: readonly MapId[] = ['CORAL', 'CITY', 'HARBOUR'];

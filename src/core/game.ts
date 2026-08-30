@@ -9,6 +9,7 @@ import { Terrain } from '../world/terrain';
 import { Sky } from '../world/sky';
 import { WaypointSystem } from '../world/waypoints';
 import { City } from '../world/city';
+import { Harbour } from '../world/harbour';
 import { Volcano } from '../world/volcano';
 import { MapId, MAPS, MapSpec } from '../world/maps';
 import { Aircraft } from '../entities/aircraft';
@@ -42,6 +43,7 @@ export class Game {
   private sky!: Sky;
   private waypoints!: WaypointSystem;
   private city: City | null = null;
+  private harbour: Harbour | null = null;
   private volcano: Volcano | null = null;
   private mapLights: THREE.Light[] = [];
   mapId!: MapId;
@@ -170,6 +172,11 @@ export class Game {
       this.volcano.dispose();
       this.volcano = null;
     }
+    if (this.harbour) {
+      this.scene.remove(this.harbour.group);
+      this.harbour.dispose();
+      this.harbour = null;
+    }
 
     this.terrain = new Terrain(spec);
     this.sky = new Sky(spec);
@@ -181,6 +188,13 @@ export class Game {
       this.city = new City(spec);
       this.terrain.setObstacles(this.city.solidHeight);
       this.scene.add(this.city.group);
+    } else if (spec.scenery === 'harbour') {
+      // the tower field and the dockside are separate builders sharing one map
+      this.city = new City(spec);
+      this.harbour = new Harbour(spec);
+      const towers = this.city.solidHeight, docks = this.harbour.solidHeight;
+      this.terrain.setObstacles((x, z) => Math.max(towers(x, z), docks(x, z)));
+      this.scene.add(this.city.group, this.harbour.group);
     } else if (spec.scenery === 'volcano') {
       this.volcano = new Volcano();
       // a solid cone is just a height, so it registers like any other obstacle
@@ -378,6 +392,7 @@ export class Game {
       (at) => this.audio.explosion(at, 1));
 
     this.volcano?.update(dt);
+    this.harbour?.update(dt);
     this.waypoints.update(dt, this.aircraft, (a) => {
       a.restock();
       this.audio.rearm(a.pos);

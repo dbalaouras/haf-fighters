@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MapSpec, RIVER, riverOffset } from './maps';
+import { MapSpec, RIVER } from './maps';
 import { rand } from '../core/mathx';
 
 interface Block {
@@ -13,7 +13,6 @@ interface Block {
 const _sphere = new THREE.Sphere();
 
 const BRIDGE_X = 0;
-const BRIDGE_HALF_WIDTH = 240;   // keep towers clear of buildings
 const DECK_Y = 78;
 
 /**
@@ -47,9 +46,9 @@ export class City {
 
   constructor(spec: MapSpec, extent = 11000) {
     this.buildBlocks(spec, extent);
-    this.group.add(...this.buildTowers());
-    this.group.add(this.buildBridge());
-    this.group.add(this.buildStreetGlow());
+    this.group.add(...this.buildTowers(spec));
+    if (spec.built?.landmark === 'bridge') this.group.add(this.buildBridge());
+    this.group.add(this.buildStreetGlow(spec));
   }
 
   /* ---------------- layout ---------------- */
@@ -62,9 +61,9 @@ export class City {
     const step = 260;
     for (let x = -extent; x <= extent; x += step) {
       for (let z = -extent; z <= extent; z += step) {
-        // leave the river, its embankments and the bridge approach clear
-        if (riverOffset(x, z) < RIVER.halfWidth + 220) continue;
-        if (Math.abs(x - BRIDGE_X) < BRIDGE_HALF_WIDTH && riverOffset(x, z) < 820) continue;
+        // whatever this map wants left open — a river and its bridge approach
+        // on Neon Delta, the working quay and the mole on Piraeus
+        if (spec.built?.keepClear(x, z)) continue;
         // thin out towards the edge of the map so it fades into open ground
         const density = 1 - Math.min(1, Math.hypot(x, z) / extent);
         if (Math.random() > 0.35 + density * 0.6) continue;
@@ -118,7 +117,7 @@ export class City {
    * Three height classes, each its own instanced mesh, so window rows stay roughly
    * square instead of being stretched by the instance scale.
    */
-  private buildTowers(): THREE.InstancedMesh[] {
+  private buildTowers(spec: MapSpec): THREE.InstancedMesh[] {
     const classes = [
       { name: 'low', max: 110, rows: 6 },
       { name: 'mid', max: 200, rows: 12 },
@@ -133,9 +132,13 @@ export class City {
       if (!members.length) continue;
 
       const geo = new THREE.BoxGeometry(1, 1, 1);
+      const lit = spec.built?.litWindows ?? true;
       const tex = this.facadeTexture(8, cls.rows);
       const mat = new THREE.MeshLambertMaterial({
-        map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.15,
+        map: tex, emissive: 0xffffff, emissiveMap: tex,
+        // at dawn the glass mostly reflects the sky instead of glowing
+        emissiveIntensity: lit ? 1.15 : 0.22,
+        color: lit ? 0xffffff : 0x6d7684,
       });
       const mesh = new THREE.InstancedMesh(geo, mat, members.length);
       mesh.frustumCulled = false;   // whole-object culling is useless at this size
@@ -262,15 +265,18 @@ export class City {
   }
 
   /** A faint warm haze over the streets, which is most of the night-city look. */
-  private buildStreetGlow(): THREE.Points {
-    const n = 2200;
+  private buildStreetGlow(spec: MapSpec): THREE.Points {
+    // fewer and dimmer at dawn: most of the street lighting is already off
+    const n = spec.built?.litWindows ? 2200 : 700;
     const pos = new Float32Array(n * 3);
     let k = 0;
-    for (let i = 0; i < n && k < n; i++) {
+    for (let i = 0; i < n * 3 && k < n; i++) {
       const x = rand(-10000, 10000), z = rand(-10000, 10000);
-      if (riverOffset(x, z) < RIVER.halfWidth + 200) continue;
+      if (spec.built?.keepClear(x, z)) continue;
+      const g = spec.baseHeight(x, z);
+      if (g < 12) continue;
       pos[k * 3] = x;
-      pos[k * 3 + 1] = RIVER.bankHeight + rand(4, 26);
+      pos[k * 3 + 1] = g + rand(4, 26);
       pos[k * 3 + 2] = z;
       k++;
     }
@@ -279,7 +285,8 @@ export class City {
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e9);
     const mat = new THREE.PointsMaterial({
       color: 0xffb45c, size: 26, sizeAttenuation: true,
-      transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending,
+      transparent: true, opacity: spec.built?.litWindows ? 0.5 : 0.22,
+      depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const pts = new THREE.Points(geo, mat);
     pts.frustumCulled = false;
