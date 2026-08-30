@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { armTip, channelCut, HARBOUR, inland, MapSpec } from './maps';
+import { HARBOUR, harbourWater, MapSpec, quayRing } from './maps';
 import { rand } from '../core/mathx';
 
 /**
@@ -62,18 +62,13 @@ export class Harbour {
     return Math.floor(x / this.cell) * 100000 + Math.floor(z / this.cell);
   }
 
-  /** Points along the quay, spaced out, each with the shore's local direction. */
+  /**
+   * Points around the quay, each facing the water. The basin is closed now, so
+   * this walks its perimeter rather than sweeping x, and drops anything that
+   * lands on the mouth — that has to stay open.
+   */
   private quayLine(step: number): Array<{ x: number; z: number; ang: number }> {
-    const out: Array<{ x: number; z: number; ang: number }> = [];
-    const c = HARBOUR.channel;
-    for (let x = -8200; x <= 8200; x += step) {
-      // nothing stands across the mouth of the channel
-      if (Math.abs(x - c.x) < c.halfWidth + 200) continue;
-      const z = HARBOUR.shore(x);
-      const dz = HARBOUR.shore(x + 40) - HARBOUR.shore(x - 40);
-      out.push({ x, z, ang: Math.atan2(dz, 80) });
-    }
-    return out;
+    return quayRing(step).filter((p) => harbourWater(p.x, p.z) > -260);
   }
 
   /**
@@ -136,9 +131,12 @@ export class Harbour {
     for (const p of this.quayLine(90)) {
       for (let lane = 0; lane < 3; lane++) {
         if (Math.random() < 0.45) continue;
-        const back = 230 + lane * 78;
-        const x = p.x + rand(-24, 24), z = p.z + back;
-        if (inland(x, z) > HARBOUR.quayDepth) continue;
+        const back = 200 + lane * 78;
+        // "behind" is away from the water, which the facing angle already knows
+        const x = p.x - Math.sin(p.ang) * back + rand(-24, 24);
+        const z = p.z - Math.cos(p.ang) * back;
+        const inlandBy = -harbourWater(x, z);
+        if (inlandBy < 0 || inlandBy > HARBOUR.quayDepth) continue;
         const h = Math.round(rand(1, 4)) * 9;
         rows.push({ x, y: spec.baseHeight(x, z), z, h });
       }
@@ -179,9 +177,8 @@ export class Harbour {
     const LEN = 330, HALF_W = 26;
 
     for (const p of this.quayLine(1150)) {
-      if (channelCut(p.x, p.z) > 0.05) continue;
       const len = LEN * rand(0.8, 1.15);
-      // out into the water, which is -z of the shoreline
+      // out into the water, along the direction this stretch of quay faces
       const parts = [boxAt(HALF_W * 2, 16, len, 0, 0, -len / 2 - 40)];
       for (let i = 0; i < 5; i++) {
         // piles under the deck, so it does not read as a floating slab
@@ -214,45 +211,52 @@ export class Harbour {
    */
   private buildBridge(spec: MapSpec, steel: THREE.Material, dark: THREE.Material): THREE.Group {
     const g = new THREE.Group();
-    const c = HARBOUR.channel;
-    const z = HARBOUR.shore(c.x) + c.bridgeAt;
-    const span = (c.halfWidth + 300) * 2;
+    const n = HARBOUR.neck;
+    const cx = (n.ax + n.bx) / 2, cz = (n.az + n.bz) / 2;
+    const ang = Math.atan2(n.bz - n.az, n.bx - n.ax);
+    const span = n.w * 2 + 620;
+    const deckY = HARBOUR.bridge.deckY;
 
     const deck = mergeAll([
-      boxAt(span, 9, 78, 0, 0, 0),
-      boxAt(span, 16, 8, 0, 10, -35),        // parapet girders
-      boxAt(span, 16, 8, 0, 10, 35),
+      boxAt(span, 9, 76, 0, 0, 0),
+      boxAt(span, 16, 8, 0, 10, -34),
+      boxAt(span, 16, 8, 0, 10, 34),
     ]);
-    deck.translate(c.x, c.deckY, z);
+    deck.rotateY(-ang);
+    deck.translate(cx, deckY, cz);
     g.add(new THREE.Mesh(deck, steel));
 
-    // pier bents: two in the water, two on the banks
-    for (const dx of [-c.halfWidth - 190, -c.halfWidth * 0.5, c.halfWidth * 0.5, c.halfWidth + 190]) {
-      const ground = spec.baseHeight(c.x + dx, z);
-      const h = c.deckY - ground;
+    // pier bents spaced across the span, in the neck's own frame
+    for (const t of [-1, -0.4, 0.4, 1]) {
+      const dx = t * (n.w + 200);
+      const wx = cx + dx * Math.cos(ang + Math.PI / 2);
+      const wz = cz + dx * Math.sin(ang + Math.PI / 2);
+      const ground = spec.baseHeight(wx, wz);
+      const h = deckY - ground;
       if (h <= 0) continue;
       const pier = mergeAll([
-        boxAt(34, h, 30, 0, h / 2, 0),
-        boxAt(52, 10, 40, 0, h - 4, 0),      // pier cap
+        boxAt(32, h, 28, 0, h / 2, 0),
+        boxAt(50, 10, 38, 0, h - 4, 0),
       ]);
-      pier.translate(c.x + dx, ground, z);
+      pier.translate(wx, ground, wz);
       g.add(new THREE.Mesh(pier, dark));
-      this.solids.push({ x: c.x + dx, z, halfX: 26, halfZ: 20, top: ground + h });
+      this.solids.push({ x: wx, z: wz, halfX: 24, halfZ: 20, top: ground + h });
     }
 
     // deck lamps, so the span reads against the water before you are committed
     const lampGeo = new THREE.SphereGeometry(3.4, 6, 5);
     const lampMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
     for (let i = -6; i <= 6; i++) {
+      const dx = i * (span / 13);
       const lamp = new THREE.Mesh(lampGeo, lampMat);
-      lamp.position.set(c.x + i * (span / 13), c.deckY + 22, z);
+      lamp.position.set(cx + dx * Math.cos(ang + Math.PI / 2), deckY + 22, cz + dx * Math.sin(ang + Math.PI / 2));
       g.add(lamp);
     }
     const glow = new THREE.PointLight(0xffc890, 1.6, 1800, 1.5);
-    glow.position.set(c.x, c.deckY + 30, z);
+    glow.position.set(cx, deckY + 30, cz);
     g.add(glow);
 
-    this.solids.push({ x: c.x, z, halfX: span / 2, halfZ: 39, top: c.deckY + 18 });
+    this.solids.push({ x: cx, z: cz, halfX: span / 2, halfZ: span / 2, top: deckY + 18 });
     return g;
   }
 
@@ -281,27 +285,33 @@ export class Harbour {
   /** The mole light — the landmark that reads from altitude. */
   private buildLighthouse(mat: THREE.Material): { group: THREE.Group; beacon: THREE.PointLight } {
     const g = new THREE.Group();
-    const tip = armTip();
+    // on the headland beside the mouth, which is the thing worth marking
+    const m = HARBOUR.mouth;
+    const ang = Math.atan2(m.bz - m.az, m.bx - m.ax);
+    const tip = {
+      x: m.ax + Math.cos(ang + Math.PI / 2) * (m.w + 130),
+      z: m.az + Math.sin(ang + Math.PI / 2) * (m.w + 130),
+    };
     const tower = new THREE.CylinderGeometry(7, 12, 52, 10);
     tower.translate(0, 26, 0);
     const cap = new THREE.CylinderGeometry(9, 9, 9, 10);
     cap.translate(0, 56, 0);
     const merged = mergeAll([tower, cap]);
-    merged.translate(tip.x, HARBOUR.arm.y, tip.z);
+    merged.translate(tip.x, HARBOUR.quayY, tip.z);
     g.add(new THREE.Mesh(merged, mat));
 
     const lamp = new THREE.Mesh(
       new THREE.SphereGeometry(5, 8, 6),
       new THREE.MeshBasicMaterial({ color: 0xffd08a }),
     );
-    lamp.position.set(tip.x, HARBOUR.arm.y + 56, tip.z);
+    lamp.position.set(tip.x, HARBOUR.quayY + 56, tip.z);
     g.add(lamp);
 
     const beacon = new THREE.PointLight(0xffc070, 2.4, 2600, 1.6);
     beacon.position.copy(lamp.position);
     g.add(beacon);
 
-    this.solids.push({ x: tip.x, z: tip.z, halfX: 14, halfZ: 14, top: HARBOUR.arm.y + 62 });
+    this.solids.push({ x: tip.x, z: tip.z, halfX: 14, halfZ: 14, top: HARBOUR.quayY + 62 });
     return { group: g, beacon };
   }
 
