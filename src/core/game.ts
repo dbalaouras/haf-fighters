@@ -113,6 +113,8 @@ export class Game {
   private _aim = new THREE.Vector3();
   /** this frame's gun lead, shared by the pipper and aim assist */
   private gun: ReturnType<Game['gunSolution']> = null;
+  /** the bandit the gun is holding, so the solution does not hop */
+  private gunHeld: Aircraft | null = null;
   private _up = new THREE.Vector3();
   private _gun = new THREE.Vector3();
   private _gunDir = new THREE.Vector3();
@@ -284,6 +286,7 @@ export class Game {
     this.feed = [];
     this.configurePilots();
     this.cm.reset();
+    this.gunHeld = null;
     this.waypoints.reset();
     this.zoneSystem?.reset();
     if (this.zoneSystem) this.zoneSystem.group.visible = this.mode.zones;
@@ -545,8 +548,10 @@ export class Game {
     const off = nose.angleTo(this._aim);
     if (off >= A.cone) return nose;
 
-    const pull = (1 - off / A.cone) * near;
-    return nose.lerp(this._aim, pull).normalize();
+    // full correction while he is genuinely in front, easing off only at the
+    // edge of the cone so the help never cuts out abruptly
+    const inside = off <= A.holdCone ? 1 : 1 - (off - A.holdCone) / (A.cone - A.holdCone);
+    return nose.lerp(this._aim, inside * near).normalize();
   }
 
   private handleWeapons(a: Aircraft, dt: number) {
@@ -770,7 +775,22 @@ export class Game {
     const p = this.player;
     if (!p.alive) return null;
 
-    // prefer whatever is locked, else the closest enemy near the nose
+    /*
+     * Stay on the one being shot at. Re-scoring every frame let the solution
+     * hop to whichever bandit happened to be marginally better placed, which
+     * from the cockpit reads as the gun letting go of a target you are still
+     * pointing at. The held one is kept until it actually leaves the envelope.
+     */
+    const held = this.gunHeld;
+    if (held?.alive && held.team !== p.team) {
+      const d = held.pos.distanceTo(p.pos);
+      const ang = p.forward(this._w).angleTo(this._v.copy(held.pos).sub(p.pos).normalize());
+      if (d <= CFG.aimAssist.releaseRange && ang <= CFG.aimAssist.releaseCone) {
+        return this.solveGun(p, held);
+      }
+    }
+
+    // otherwise: prefer whatever is locked, else the closest enemy near the nose
     let target: Aircraft | null = null;
     let bestScore = Infinity;
     for (const t of this.aircraft) {
@@ -782,8 +802,13 @@ export class Game {
       const score = d + ang * 1400 - (t === p.lockTarget ? 600 : 0);
       if (score < bestScore) { bestScore = score; target = t; }
     }
-    if (!target) return null;
+    if (!target) { this.gunHeld = null; return null; }
+    return this.solveGun(p, target);
+  }
 
+  /** The lead, the range and whether the assist has it, for one chosen target. */
+  private solveGun(p: Aircraft, target: Aircraft) {
+    this.gunHeld = target;
     const bulletSpeed = CFG.gun.speed + p.speed * 0.35;
     let t = target.pos.distanceTo(p.pos) / bulletSpeed;
     for (let i = 0; i < 2; i++) {
@@ -799,7 +824,7 @@ export class Game {
       dist,
       /** true when aim assist would bend a round right now */
       assisted: this.settings.data.aimAssist
-        && dist <= CFG.aimAssist.falloff
+        && dist < CFG.aimAssist.falloff
         && off < CFG.aimAssist.cone,
       missBy,
       hot: missBy < CFG.gun.pipperHotMiss && dist < CFG.gun.range,

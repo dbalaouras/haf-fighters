@@ -108,10 +108,19 @@ export const CFG = {
    */
   aimAssist: {
     /** full strength inside this, tapering to nothing at falloff */
-    range: 700,
-    falloff: 1150,
-    /** how far off the solution the nose may be, in radians */
-    cone: 9 * Math.PI / 180,
+    range: 900,
+    falloff: 1500,
+    /**
+     * Inside `holdCone` the rounds go where the solution is, full stop — that is
+     * the "close and facing him" case, and it should simply hit. Between there
+     * and `cone` the help tapers off, so the assist has a soft edge instead of a
+     * line you cross where the gun abruptly stops working.
+     */
+    holdCone: 11 * Math.PI / 180,
+    cone: 18 * Math.PI / 180,
+    /** a held target is kept until it leaves this, so the gun does not hop */
+    releaseCone: 26 * Math.PI / 180,
+    releaseRange: 1750,
   },
 
   /** Scoreboard points. Damage also scores, so support work is visible. */
