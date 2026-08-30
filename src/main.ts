@@ -1,4 +1,4 @@
-import { CFG } from './core/config';
+import { AIRFRAMES, CFG, WEAPONS } from './core/config';
 import { Game } from './core/game';
 import { Input } from './core/input';
 import { Settings } from './core/settings';
@@ -79,4 +79,6 @@ input.onPointerLockChange((locked) => {
 game.start();
 
 // expose for quick console tinkering while iterating on feel
-Object.assign(window as unknown as Record<string, unknown>, { game, CFG, overlay });
+// exposed for console tuning and headless soaks
+Object.assign(window as unknown as Record<string, unknown>,
+  { game, CFG, overlay, WEAPONS, AIRFRAMES });

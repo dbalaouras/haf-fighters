@@ -55,6 +55,9 @@ export class Game {
   aircraft: Aircraft[] = [];
   player!: Aircraft;
   private pilots: Pilot[] = [];
+  /** non-null when the player slot is being flown by a bot, for soaks */
+  private botPilot: Pilot | null = null;
+  private rosterCache: Pilot[] = [];
   private slot = new Map<Aircraft, number>();
 
   private difficulty: DifficultyId;
@@ -275,6 +278,7 @@ export class Game {
     for (let i = 0; i < this.pilots.length; i++) {
       this.pilots[i].configure(diff, i % CFG.match.teamSize);
     }
+    this.botPilot?.configure(diff, CFG.match.teamSize - 1);
   }
 
   /** Abandon the current match and sit paused on the menu. */
@@ -283,6 +287,35 @@ export class Game {
     this.over = false;
     this.reset();
     if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  /**
+   * Hand the player's jet to a bot.
+   *
+   * Every balance soak so far has run with the player parked, which quietly made
+   * the numbers describe nine aircraft fighting and one drifting — enough to
+   * flatter any statistic about how a weapon performs. With this on the tenth
+   * slot fights too.
+   */
+  setBotPilot(on: boolean) {
+    if (on === !!this.botPilot) return;
+    if (!on) {
+      this.botPilot = null;
+      this.rosterCache = [];
+      return;
+    }
+    const diff = DIFFICULTIES[this.settings.data.difficulty];
+    this.botPilot = new Pilot(this.player, diff, CFG.match.teamSize - 1);
+    this.rosterCache = [];
+  }
+
+  /** Pilots plus the bot, so target picking can see every jet that is flying. */
+  private roster(): Pilot[] {
+    if (!this.botPilot) return this.pilots;
+    if (this.rosterCache.length !== this.pilots.length + 1) {
+      this.rosterCache = [...this.pilots, this.botPilot];
+    }
+    return this.rosterCache;
   }
 
   /** Advance the simulation without rendering — used by the headless sim check. */
@@ -303,7 +336,9 @@ export class Game {
     this.lookPitch = s.lookPitch;
     this.freeLook = s.freeLook;
     const pc = this.player.controls;
-    if (this.player.alive) {
+    if (this.botPilot) {
+      // a bot has the stick; leave the player's controls to it below
+    } else if (this.player.alive) {
       pc.pitch = s.pitch; pc.roll = s.roll; pc.yaw = s.yaw;
       pc.throttle = s.throttle; pc.burner = s.burner;
       pc.gun = s.gun; pc.missile = s.missile; pc.flares = s.flares; pc.chaff = s.chaff;
@@ -312,7 +347,10 @@ export class Game {
     }
 
     // --- AI ---
-    for (const p of this.pilots) p.update(dt, this.time, this.aircraft, this.pilots, this.terrain, this.waypoints);
+    // one roster for the frame: target picking counts how many pilots already
+    // hold a bandit, so the bot has to be in the list the others can see
+    const roster = this.roster();
+    for (const p of roster) p.update(dt, this.time, this.aircraft, roster, this.terrain, this.waypoints);
 
     // --- flight + per-aircraft systems ---
     for (const a of this.aircraft) {
