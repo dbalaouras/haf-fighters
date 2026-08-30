@@ -110,6 +110,9 @@ export class Game {
 
   private _v = new THREE.Vector3();
   private _w = new THREE.Vector3();
+  private _aim = new THREE.Vector3();
+  /** this frame's gun lead, shared by the pipper and aim assist */
+  private gun: ReturnType<Game['gunSolution']> = null;
   private _up = new THREE.Vector3();
   private _gun = new THREE.Vector3();
   private _gunDir = new THREE.Vector3();
@@ -415,6 +418,14 @@ export class Game {
     const zones = this.mode.zones ? this.zoneSystem : null;
     for (const p of roster) p.update(dt, this.time, this.aircraft, roster, this.terrain, this.waypoints, zones);
 
+    /*
+     * One gun solution per frame, before anything fires. The HUD used to work
+     * it out during render, which is after the shot has already left — sharing
+     * it means the pipper and the assist can never disagree about where the
+     * lead is.
+     */
+    this.gun = this.gunSolution();
+
     // --- flight + per-aircraft systems ---
     for (const a of this.aircraft) {
       a.threatRange = Infinity;
@@ -511,6 +522,33 @@ export class Game {
     }
   }
 
+  /**
+   * Where a round actually leaves. Normally straight off the nose; with aim
+   * assist on, bent toward the lead the pipper is already drawing.
+   *
+   * Blended rather than snapped, on both gates. Dead centre of the cone gets
+   * the full correction and the edge gets none, so there is no line you cross
+   * where the cannon suddenly starts hitting — and it fades out with range, so
+   * it stays a close-in aid rather than turning the gun into a sniper rifle.
+   */
+  private gunDirection(a: Aircraft, out: THREE.Vector3): THREE.Vector3 {
+    const nose = a.forward(out);
+    if (a !== this.player || !this.settings.data.aimAssist) return nose;
+    const sol = this.gun;
+    if (!sol) return nose;
+
+    const A = CFG.aimAssist;
+    const near = 1 - clamp01((sol.dist - A.range) / (A.falloff - A.range));
+    if (near <= 0) return nose;
+
+    this._aim.copy(sol.point).sub(a.pos).normalize();
+    const off = nose.angleTo(this._aim);
+    if (off >= A.cone) return nose;
+
+    const pull = (1 - off / A.cone) * near;
+    return nose.lerp(this._aim, pull).normalize();
+  }
+
   private handleWeapons(a: Aircraft, dt: number) {
     const c = a.controls;
 
@@ -523,8 +561,9 @@ export class Game {
         a.gunHeat = Math.min(1, a.gunHeat + CFG.gun.heatPerShot);
         if (a.gunHeat >= 1) a.gunOverheated = true;
         const origin = this._v.copy(a.pos).addScaledVector(a.forward(this._w), 7.5);
-        this.bullets.spawn(a, origin, a.forward(this._w));
-        this.fx.muzzleFlash(origin, this._w.multiplyScalar(CFG.gun.speed));
+        const dir = this.gunDirection(a, this._w);
+        this.bullets.spawn(a, origin, dir);
+        this.fx.muzzleFlash(origin, this._aim.copy(dir).multiplyScalar(CFG.gun.speed));
         this.audio.gun(a.pos, a);
       }
     } else if (a.gunCooldown < 0) {
@@ -758,6 +797,10 @@ export class Game {
     return {
       point: this._gun,
       dist,
+      /** true when aim assist would bend a round right now */
+      assisted: this.settings.data.aimAssist
+        && dist <= CFG.aimAssist.falloff
+        && off < CFG.aimAssist.cone,
       missBy,
       hot: missBy < CFG.gun.pipperHotMiss && dist < CFG.gun.range,
       name: target.name,
@@ -799,7 +842,7 @@ export class Game {
       rearmFlash: this.rearmFlash,
       radarRange: this.input.radarRange,
       freeLook: this.freeLook,
-      gun: this.gunSolution(),
+      gun: this.gun,
       muted: this.settings.effectiveVolume <= 0,
     };
   }

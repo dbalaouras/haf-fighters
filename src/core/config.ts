@@ -80,7 +80,13 @@ export const CFG = {
     pipperRange: 1500,
     /** predicted miss under this many metres lights the pipper as a firing cue */
     pipperHotMiss: 14,
-    heatPerShot: 0.024,   // ~9 s of continuous fire before the barrels cook
+    /**
+     * Raised from 0.024 alongside aim assist. At 1400 rpm against 0.45/s of
+     * cooling that is 2.9 s of held trigger rather than 9.1 — about 68 rounds,
+     * where a kill needs 16 to 21 on target. Assist makes hits cheap, so the
+     * burst length is what is left to spend.
+     */
+    heatPerShot: 0.034,
     heatCool: 0.45,       // per second
     heatResume: 0.35,     // must cool below this before firing again
     hitRadius: 9,
@@ -91,6 +97,21 @@ export const CFG = {
     blastFalloffFloor: 0.25,
     /** HUD pip strip width, so labels can sit clear of it */
     pipWidth: 84,
+  },
+
+  /**
+   * Aim assist. Inside `range` and already roughly on the solution, the rounds
+   * leave along the lead the pipper is drawing rather than straight off the
+   * nose. Both gates matter: the cone means it rewards a pilot who has already
+   * done the hard part of the tracking shot, and the range means it never
+   * turns the cannon into a sniper rifle.
+   */
+  aimAssist: {
+    /** full strength inside this, tapering to nothing at falloff */
+    range: 700,
+    falloff: 1150,
+    /** how far off the solution the nose may be, in radians */
+    cone: 9 * Math.PI / 180,
   },
 
   /** Scoreboard points. Damage also scores, so support work is visible. */

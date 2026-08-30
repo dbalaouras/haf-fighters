@@ -337,6 +337,8 @@ export class Hud {
     const near = clamp01(1 - (sol.dist - CFG.gun.range) / (CFG.gun.pipperRange - CFG.gun.range));
     const alpha = 0.35 + 0.65 * near;
     const col = sol.hot ? '#ffd166' : ACCENT;
+    // a filled pip says the assist has the shot, so the cue is never a surprise
+    const locked = (sol as { assisted?: boolean }).assisted === true;
 
     // lead line from the boresight out to the solution
     c.globalAlpha = alpha * 0.4;
@@ -361,6 +363,16 @@ export class Hud {
       c.beginPath();
       c.arc(sp.x, sp.y, 3.2, 0, Math.PI * 2);
       c.fill();
+    }
+
+    // assist engaged: a second ring, so it is visible that the rounds are
+    // being helped rather than the pilot quietly getting better
+    if (locked) {
+      c.globalAlpha = alpha * 0.8;
+      c.lineWidth = 1;
+      c.beginPath();
+      c.arc(sp.x, sp.y, 14, 0, Math.PI * 2);
+      c.stroke();
     }
 
     // range arc: a full ring at the muzzle, closing as the target runs away

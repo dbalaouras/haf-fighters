@@ -30,6 +30,8 @@ export interface SettingsData {
   invertRoll: boolean;
   /** coordinated turns + auto-levelling; off gives raw rate control */
   assist: boolean;
+  /** cannon rounds follow the lead solution at close range */
+  aimAssist: boolean;
   /** 0..1, mapped onto the usable mouse-gain range */
   sensitivity: number;
   volume: number;
@@ -56,6 +58,7 @@ const DEFAULTS: SettingsData = {
   invertPitch: false,
   invertRoll: false,
   assist: true,
+  aimAssist: true,
   sensitivity: 0.15,
   volume: 0.7,
   muted: false,
@@ -120,7 +123,7 @@ export class Settings {
     this.emit();
   }
 
-  toggle(key: 'invertPitch' | 'invertRoll' | 'assist' | 'muted' | 'cullCity') {
+  toggle(key: 'invertPitch' | 'invertRoll' | 'assist' | 'aimAssist' | 'muted' | 'cullCity') {
     this.data[key] = !this.data[key];
     this.emit();
   }

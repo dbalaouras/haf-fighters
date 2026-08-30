@@ -56,7 +56,7 @@ const GEAR_ICON = `
     <circle cx="12" cy="12" r="3.1"/>
   </svg>`;
 
-type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted' | 'cullCity'
+type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'aimAssist' | 'muted' | 'cullCity'
   | 'sens-' | 'sens+' | 'vol-' | 'vol+' | 'reset' | `bind:${ActionId}`;
 
 type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back'
@@ -163,7 +163,8 @@ export class Overlay {
       case 'vol-': this.settings.nudgeVolume(-0.1); break;
       case 'vol+': this.settings.nudgeVolume(0.1); break;
       case 'reset': this.settings.reset(); break;
-      case 'invertPitch': case 'invertRoll': case 'assist': case 'muted': case 'cullCity':
+      case 'invertPitch': case 'invertRoll': case 'assist':
+      case 'aimAssist': case 'muted': case 'cullCity':
         this.settings.toggle(ctl);
         break;
     }
@@ -232,6 +233,7 @@ export class Overlay {
       ${this.toggleRow('Invert pitch', 'invertPitch', d.invertPitch, 'I')}
       ${this.toggleRow('Invert roll', 'invertRoll', d.invertRoll)}
       ${this.toggleRow('Flight assist', 'assist', d.assist, 'G')}
+      ${this.toggleRow('Aim assist', 'aimAssist', d.aimAssist)}
       ${this.stepperRow('Mouse sensitivity', 'sens-', 'sens+', `${this.settings.sensitivityPct}%`, '[ ]')}
       <div class="bsub">Graphics</div>
       ${this.toggleRow('Skip off-screen buildings', 'cullCity', d.cullCity)}
