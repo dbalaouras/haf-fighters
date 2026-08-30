@@ -37,6 +37,12 @@ export interface MapSpec {
 
   fog: { color: number; near: number; far: number };
 
+  /**
+   * Where Air Superiority puts A, B and C. Optional: without it the zones fall
+   * back to the team spawns and the middle of the map, which works anywhere but
+   * ignores what the map is actually about.
+   */
+  zones?: Array<{ x: number; z: number; owner?: 'BLUE' | 'RED' | null }>;
   /** built after the terrain, for anything map-specific standing on it */
   scenery?: 'city' | 'volcano' | 'harbour';
   /**
@@ -137,6 +143,12 @@ const CORAL: MapSpec = {
   water: { deep: 0x0e3652, shallow: 0x3f95bb, specular: 1.15, fogTint: new THREE.Vector3(0.78, 0.68, 0.62) },
   light: { sunColor: 0xffd9a6, sunIntensity: 2.3, skyColor: 0xc0b6c4, groundColor: 0x30302a, hemiIntensity: 1.0 },
   fog: { color: 0xb9977f, near: 3500, far: 23000 },
+  // B sits over the volcano: the one piece of terrain worth fighting around
+  zones: [
+    { x: -5200, z: 4200, owner: 'BLUE' },
+    { x: 0, z: 0 },
+    { x: 5200, z: -4200, owner: 'RED' },
+  ],
   scenery: 'volcano',
 };
 
@@ -194,6 +206,12 @@ const CITY: MapSpec = {
   water: { deep: 0x040910, shallow: 0x10293f, specular: 0.5, fogTint: new THREE.Vector3(0.10, 0.13, 0.20) },
   light: { sunColor: 0x9fb4e6, sunIntensity: 0.5, skyColor: 0x2a3556, groundColor: 0x140f18, hemiIntensity: 0.5 },
   fog: { color: 0x121a2b, near: 2200, far: 17000 },
+  // B over the bridge, which is the landmark and the only crossing
+  zones: [
+    { x: -5400, z: 4400, owner: 'BLUE' },
+    { x: 0, z: 0 },
+    { x: 5400, z: -4400, owner: 'RED' },
+  ],
   scenery: 'city',
   built: {
     keepClear: (x, z) => riverOffset(x, z) < RIVER.halfWidth + 220
@@ -327,6 +345,12 @@ const HARBOUR_MAP: MapSpec = {
   water: { deep: 0x122232, shallow: 0x3d5f74, specular: 1.3, fogTint: new THREE.Vector3(0.80, 0.70, 0.66) },
   light: { sunColor: 0xffc28a, sunIntensity: 1.5, skyColor: 0xa9b6cc, groundColor: 0x2b2620, hemiIntensity: 0.95 },
   fog: { color: 0xc0a291, near: 1800, far: 19000 },
+  // B over the harbour mouth, between the mole and the channel
+  zones: [
+    { x: -5600, z: 3800, owner: 'BLUE' },
+    { x: 1500, z: -1400 },
+    { x: 5600, z: -4000, owner: 'RED' },
+  ],
   scenery: 'harbour',
   built: {
     // towers stand back from the working apron, and never on the mole

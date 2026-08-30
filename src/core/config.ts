@@ -344,6 +344,57 @@ export const AIRFRAMES: Record<AirframeId, AirframeSpec> = {
 
 export const AIRFRAME_ORDER: readonly AirframeId[] = ['F16', 'FA9', 'F22'];
 
+export type ModeId = 'DM' | 'AS';
+
+/**
+ * What a mode changes. Kept as a spec rather than a class for the same reason
+ * weapons, maps and airframes are: the match rules were inlined in Game, and
+ * pulling them into data is what lets a second mode exist without a second copy
+ * of the match loop.
+ */
+export interface ModeSpec {
+  id: ModeId;
+  name: string;
+  /** one line under the mode picker */
+  blurb: string;
+  /** what a team has to reach to win */
+  scoreLimit: number;
+  /** whether a kill puts a point on the board */
+  killsScore: boolean;
+  /** whether the map carries capture zones */
+  zones: boolean;
+  /** points per second for holding two zones, and for holding all three */
+  holdRate: { two: number; all: number };
+}
+
+export const MODES: Record<ModeId, ModeSpec> = {
+  DM: {
+    id: 'DM', name: 'TEAM DEATHMATCH',
+    blurb: 'Every kill is a point. First to 20.',
+    scoreLimit: 20, killsScore: true, zones: false,
+    holdRate: { two: 0, all: 0 },
+  },
+  AS: {
+    id: 'AS', name: 'AIR SUPERIORITY',
+    blurb: 'Hold the zones. Kills buy you room, not points.',
+    scoreLimit: 200, killsScore: false, zones: true,
+    holdRate: { two: 1, all: 2 },
+  },
+};
+
+export const MODE_ORDER: readonly ModeId[] = ['DM', 'AS'];
+
+/** Capture zones: three rings, one gifted to each team and one neutral. */
+export const ZONES = {
+  /** how long a ring stays shut after a capture, so it cannot be flipped twice in a pass */
+  lockout: 4,
+  ringRadius: 210,
+  tube: 9,
+  /** metres above the ground the ring floats, if the terrain pushes it up */
+  clearance: 520,
+  altitude: 1250,
+};
+
 export const MODE_NAME = 'TEAM DEATHMATCH';
 
 export type TeamId = 'BLUE' | 'RED';

@@ -1,7 +1,16 @@
 import * as THREE from 'three';
 import {
-  AirframeId, AIRFRAMES, AIRFRAME_ORDER, CFG, DifficultyId, DIFFICULTIES,
-  TEAM, TeamId, WEAPONS, other,
+  AIRFRAMES,
+  AIRFRAME_ORDER,
+  AirframeId,
+  CFG,
+  DIFFICULTIES,
+  DifficultyId,
+  MODES,
+  TEAM,
+  TeamId,
+  WEAPONS,
+  other,
 } from './config';
 import { clamp, clamp01, damp, lerp, rand } from './mathx';
 import { Input } from './input';
@@ -10,6 +19,7 @@ import { Sky } from '../world/sky';
 import { WaypointSystem } from '../world/waypoints';
 import { City } from '../world/city';
 import { Harbour } from '../world/harbour';
+import { ZoneSystem } from '../world/zones';
 import { Volcano } from '../world/volcano';
 import { MapId, MAPS, MapSpec } from '../world/maps';
 import { Aircraft } from '../entities/aircraft';
@@ -44,6 +54,7 @@ export class Game {
   private waypoints!: WaypointSystem;
   private city: City | null = null;
   private harbour: Harbour | null = null;
+  zoneSystem: ZoneSystem | null = null;
   private volcano: Volcano | null = null;
   private mapLights: THREE.Light[] = [];
   mapId!: MapId;
@@ -65,6 +76,8 @@ export class Game {
   private difficulty: DifficultyId;
   private airframe: AirframeId;
   score: Record<TeamId, number> = { BLUE: 0, RED: 0 };
+  /** the rules in play; see MODES */
+  get mode() { return MODES[this.settings.data.mode]; }
   timeLeft = CFG.match.timeLimit;
   time = 0;
   paused = true;
@@ -205,6 +218,11 @@ export class Game {
     this.waypoints = new WaypointSystem(this.terrain);
     this.scene.add(this.sky.group, this.terrain.mesh, this.terrain.water, this.waypoints.group);
 
+    if (this.zoneSystem) { this.scene.remove(this.zoneSystem.group); this.zoneSystem.dispose(); }
+    this.zoneSystem = new ZoneSystem(spec, this.terrain);
+    this.zoneSystem.group.visible = this.mode.zones;
+    this.scene.add(this.zoneSystem.group);
+
     if (this.player) this.reset();
   }
 
@@ -239,6 +257,22 @@ export class Game {
     this.pushFeed('MATCH START — 5v5 DOGFIGHT', null);
   }
 
+  /**
+   * Ground held pays by the second: two zones earn, all three earn double, and
+   * one earns nothing. That is the whole economy of Air Superiority — a team
+   * parked on its own gifted zone scores at exactly the same rate as a team
+   * that has lost everything.
+   */
+  private scoreZones(dt: number) {
+    const zs = this.zoneSystem;
+    if (!zs || !this.mode.zones) return;
+    for (const team of ['BLUE', 'RED'] as TeamId[]) {
+      const n = zs.held(team);
+      const rate = n >= 3 ? this.mode.holdRate.all : n === 2 ? this.mode.holdRate.two : 0;
+      if (rate > 0) this.score[team] += rate * dt;
+    }
+  }
+
   /** Start a completely fresh match: scores, pilots and all carried stores. */
   reset() {
     this.score = { BLUE: 0, RED: 0 };
@@ -248,6 +282,8 @@ export class Game {
     this.configurePilots();
     this.cm.reset();
     this.waypoints.reset();
+    this.zoneSystem?.reset();
+    if (this.zoneSystem) this.zoneSystem.group.visible = this.mode.zones;
     this.audio.reset();
     for (const a of this.aircraft) {
       a.kills = 0; a.deaths = 0; a.assists = 0; a.score = 0; a.damageDealt = 0;
@@ -287,12 +323,24 @@ export class Game {
   stop() { cancelAnimationFrame(this.raf); }
 
   /** Re-roll every AI pilot for the currently selected difficulty. */
+  /**
+   * Skill comes from the pilot's slot in its squadron, so the slot has to be
+   * counted per team. Indexing the flat pilot array `i % teamSize` looked
+   * equivalent but is not: the player has no AI pilot, so the array holds nine,
+   * and the slots fall 0,1,2,3 for one side and 4,0,1,2,3 for the other. One
+   * team was quietly getting an extra senior pilot in every match, in every
+   * mode, and every balance soak this project has run was measuring it.
+   */
   private configurePilots() {
     const diff = DIFFICULTIES[this.settings.data.difficulty];
-    for (let i = 0; i < this.pilots.length; i++) {
-      this.pilots[i].configure(diff, i % CFG.match.teamSize);
+    const next: Record<TeamId, number> = { BLUE: 0, RED: 0 };
+    for (const p of this.pilots) {
+      p.configure(diff, next[p.jet.team]++ % CFG.match.teamSize);
     }
-    this.botPilot?.configure(diff, CFG.match.teamSize - 1);
+    // the bot fills the player's slot, so it takes the seat its team is missing
+    if (this.botPilot) {
+      this.botPilot.configure(diff, next[this.player.team]++ % CFG.match.teamSize);
+    }
   }
 
   /** Abandon the current match and sit paused on the menu. */
@@ -364,7 +412,8 @@ export class Game {
     // one roster for the frame: target picking counts how many pilots already
     // hold a bandit, so the bot has to be in the list the others can see
     const roster = this.roster();
-    for (const p of roster) p.update(dt, this.time, this.aircraft, roster, this.terrain, this.waypoints);
+    const zones = this.mode.zones ? this.zoneSystem : null;
+    for (const p of roster) p.update(dt, this.time, this.aircraft, roster, this.terrain, this.waypoints, zones);
 
     // --- flight + per-aircraft systems ---
     for (const a of this.aircraft) {
@@ -393,6 +442,12 @@ export class Game {
 
     this.volcano?.update(dt);
     this.harbour?.update(dt);
+    if (this.mode.zones) {
+      this.zoneSystem?.update(dt, this.aircraft, (a, z) => {
+        this.pushFeed(`${a.name} took ${z.label}`, a.team, 3.4);
+        if (a === this.player) this.audio.rearm(a.pos);
+      });
+    }
     this.waypoints.update(dt, this.aircraft, (a) => {
       a.restock();
       this.audio.rearm(a.pos);
@@ -411,7 +466,10 @@ export class Game {
     for (const f of this.feed) f.t -= dt;
     this.feed = this.feed.filter((f) => f.t > 0);
 
-    if (this.score.BLUE >= CFG.match.scoreLimit || this.score.RED >= CFG.match.scoreLimit || this.timeLeft <= 0) {
+    this.scoreZones(dt);
+
+    const limit = this.mode.scoreLimit;
+    if (this.score.BLUE >= limit || this.score.RED >= limit || this.timeLeft <= 0) {
       this.endMatch();
     }
   }
@@ -529,7 +587,7 @@ export class Game {
     if (killer && killer !== victim && killer.team !== victim.team) {
       killer.kills++;
       killer.score += CFG.scoring.kill;
-      this.score[killer.team]++;
+      if (this.mode.killsScore) this.score[killer.team]++;
       this.pushFeed(`${killer.name} ▸ ${victim.name}`, killer.team, 5);
       if (killer === this.player) {
         this.shake = Math.min(1, this.shake + 0.25);
@@ -726,6 +784,8 @@ export class Game {
       aircraft: this.aircraft,
       camera: this.camera,
       score: this.score,
+      scoreLimit: this.mode.scoreLimit,
+      zones: this.mode.zones ? this.zoneSystem?.zones ?? null : null,
       timeLeft: this.timeLeft,
       feed: this.feed,
       banner,
@@ -748,6 +808,8 @@ export class Game {
   matchInfo(result?: 'VICTORY' | 'DEFEAT' | 'DRAW') {
     return {
       score: this.score,
+      modeName: this.mode.name,
+      scoreLimit: this.mode.scoreLimit,
       timeLeft: Math.max(0, this.timeLeft),
       teams: this.standings(),
       mapName: this.mapName,

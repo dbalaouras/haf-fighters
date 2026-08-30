@@ -1,7 +1,7 @@
 import { clamp01 } from './mathx';
 import { ActionId, Bindings, defaultBindings } from './bindings';
 import { MapId, MAPS } from '../world/maps';
-import { AirframeId, AIRFRAMES, DifficultyId, DIFFICULTIES } from './config';
+import { AirframeId, AIRFRAMES, DifficultyId, DIFFICULTIES, ModeId, MODES } from './config';
 
 export const MAX_NAME = 14;
 export const DEFAULT_NAME = 'VIPER';
@@ -21,6 +21,8 @@ export interface SettingsData {
   /** the player's callsign, shown on the HUD, scoreboard and kill feed */
   pilotName: string;
   mapId: MapId;
+  /** which set of match rules to play under */
+  mode: ModeId;
   difficulty: DifficultyId;
   airframe: AirframeId;
   /** pulling back on the mouse raises the nose when false */
@@ -48,6 +50,7 @@ const LEGACY_KEYS = ['harfighters.settings.v1', 'skyclash.settings.v2'];
 const DEFAULTS: SettingsData = {
   pilotName: DEFAULT_NAME,
   mapId: 'CORAL',
+  mode: 'DM',
   difficulty: 'REGULAR',
   airframe: 'FA9',
   invertPitch: false,
@@ -89,6 +92,7 @@ export class Settings {
         this.data.bindings = { ...defaultBindings(), ...parsed.bindings };
       }
       this.data.sensitivity = clamp01(this.data.sensitivity);
+      if (!MODES[this.data.mode]) this.data.mode = 'DM';
       this.data.volume = clamp01(this.data.volume);
       this.data.pilotName = sanitizeName(this.data.pilotName);
       if (!MAPS[this.data.mapId]) this.data.mapId = DEFAULTS.mapId;
@@ -126,6 +130,8 @@ export class Settings {
   }
 
   setMap(id: MapId) { this.set('mapId', id); }
+
+  setMode(id: ModeId) { this.set('mode', id); }
 
   setDifficulty(id: DifficultyId) { this.set('difficulty', id); }
 

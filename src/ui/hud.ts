@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CFG, TEAM, TeamId, WEAPONS, WEAPON_ORDER } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
+import { Zone } from '../world/zones';
 import { Waypoint } from '../world/waypoints';
 import { clamp01, fmtTime, lerp } from '../core/mathx';
 
@@ -11,6 +12,10 @@ export interface HudState {
   aircraft: readonly Aircraft[];
   camera: THREE.PerspectiveCamera;
   score: Record<TeamId, number>;
+  /** what a team has to reach; varies by mode */
+  scoreLimit: number;
+  /** capture zones, or null outside Air Superiority */
+  zones: readonly Zone[] | null;
   timeLeft: number;
   feed: FeedLine[];
   banner: { text: string; sub?: string; color?: string } | null;
@@ -785,15 +790,16 @@ export class Hud {
     c.font = '22px "SF Mono", Menlo, monospace';
     c.textAlign = 'right';
     c.fillStyle = TEAM.BLUE.css;
-    c.fillText(`${s.score.BLUE}`, cx - 22, 44);
+    c.fillText(`${Math.floor(s.score.BLUE)}`, cx - 22, 44);
     c.textAlign = 'left';
     c.fillStyle = TEAM.RED.css;
-    c.fillText(`${s.score.RED}`, cx + 22, 44);
+    c.fillText(`${Math.floor(s.score.RED)}`, cx + 22, 44);
     c.textAlign = 'center';
     c.fillStyle = DIM;
     c.font = '11px "SF Mono", Menlo, monospace';
     c.fillText('—', cx, 44);
-    c.fillText(`FIRST TO ${CFG.match.scoreLimit}`, cx, 60);
+    c.fillText(`FIRST TO ${s.scoreLimit}`, cx, 60);
+    if (s.zones) this.zoneStrip(s, cx);
 
     // team strength bars
     const alive = (t: TeamId) => s.aircraft.filter((a) => a.team === t && a.alive).length;
@@ -806,6 +812,32 @@ export class Hud {
     };
     drawPips('BLUE', cx - 100, -1);
     drawPips('RED', cx + 94, 1);
+  }
+
+  /**
+   * A B C, owner-coloured, under the score. This is the whole readout for the
+   * mode: with kills off the board, holding is the only thing that moves it, so
+   * what you need at a glance is who has what — not a capture percentage.
+   */
+  private zoneStrip(s: HudState, cx: number) {
+    const c = this.ctx;
+    const zones = s.zones;
+    if (!zones) return;
+    const w = 30, gap = 8;
+    const total = zones.length * w + (zones.length - 1) * gap;
+    let x = cx - total / 2;
+    for (const z of zones) {
+      const col = z.owner ? TEAM[z.owner].css : 'rgba(200,214,230,0.55)';
+      c.globalAlpha = 1;
+      c.fillStyle = col;
+      c.fillRect(x, 70, w, 3);
+      c.font = '10px "SF Mono", Menlo, monospace';
+      c.textAlign = 'center';
+      c.fillStyle = z.owner ? col : DIM;
+      c.fillText(z.label, x + w / 2, 82);
+      x += w + gap;
+    }
+    c.font = '11px "SF Mono", Menlo, monospace';
   }
 
   private feed(s: HudState) {

@@ -3,9 +3,10 @@ import { CFG, DifficultySpec, DIFFICULTIES, WEAPONS } from '../core/config';
 import { Aircraft } from '../entities/aircraft';
 import { Terrain } from '../world/terrain';
 import { WaypointSystem } from '../world/waypoints';
+import { Zone, ZoneSystem } from '../world/zones';
 import { clamp, rand } from '../core/mathx';
 
-type State = 'PURSUE' | 'ATTACK' | 'EVADE' | 'EXTEND' | 'RECOVER' | 'DESCEND' | 'REARM';
+type State = 'PURSUE' | 'ATTACK' | 'EVADE' | 'EXTEND' | 'RECOVER' | 'DESCEND' | 'REARM' | 'CAPTURE';
 
 const _l = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -30,6 +31,8 @@ export class Pilot {
   private flareTimer = 0;
   private jitterPhase = rand(0, 100);
   private trigger = 0;
+  /** the zone this pilot is running at, in Air Superiority */
+  private capture: Zone | null = null;
 
   constructor(jet: Aircraft, diff: DifficultySpec, slot: number) {
     this.jet = jet;
@@ -57,6 +60,7 @@ export class Pilot {
     this.target = null;
     this.state = 'PURSUE';
     this.stateTimer = 0;
+    this.capture = null;
     this.retargetTimer = rand(0, 1.5);
     this.jitterPhase = rand(0, 100);
     this.trigger = 0;
@@ -65,7 +69,7 @@ export class Pilot {
 
   update(
     dt: number, time: number, all: readonly Aircraft[], roster: readonly Pilot[],
-    terrain: Terrain, waypoints: WaypointSystem,
+    terrain: Terrain, waypoints: WaypointSystem, zones?: ZoneSystem | null,
   ) {
     const jet = this.jet;
     if (!jet.alive) { this.target = null; return; }
@@ -112,6 +116,24 @@ export class Pilot {
       this.state = 'PURSUE';
     }
 
+    /*
+     * Objective before dogfight, but only when it pays. Holding two zones is
+     * what starts the clock, so a team already on two has nothing to gain from
+     * a third that it cannot also defend — it is better off fighting. A team on
+     * fewer than two is losing by standing still, whatever its kill count.
+     */
+    if (zones && (this.state === 'PURSUE' || this.state === 'ATTACK' || this.state === 'CAPTURE')) {
+      const holding = zones.held(jet.team);
+      const wanted = holding < 2 ? zones.nearestTarget(jet.team, jet.pos) : null;
+      if (wanted) {
+        this.capture = wanted;
+        this.state = 'CAPTURE';
+      } else if (this.state === 'CAPTURE') {
+        this.capture = null;
+        this.state = 'PURSUE';
+      }
+    }
+
     // shot dry or shot up? go and rearm, provided a zone is close enough to bother
     if (this.state === 'PURSUE' || this.state === 'ATTACK') {
       const hurt = jet.hp < CFG.ai.resupplyHp || jet.worstSystem < 0.45;
@@ -147,6 +169,25 @@ export class Pilot {
         c.roll = clamp(-jet.bank * 2.2, -1, 1);
         c.pitch = clamp(0.55 + (CFG.ai.minAltitude - agl) / CFG.ai.minAltitude, 0.4, 1);
         c.yaw = 0;
+        break;
+      }
+
+      case 'CAPTURE': {
+        const z = this.capture;
+        if (!z || z.owner === jet.team) { this.state = 'PURSUE'; this.capture = null; break; }
+        c.throttle = 1;
+        c.burner = jet.pos.distanceTo(z.pos) > 2200;
+        // line up on the hoop's axis rather than the hoop itself, so the run
+        // comes in square: the ring only counts if you cross its plane inside it
+        _to.copy(z.pos).sub(jet.pos);
+        const range = _to.length();
+        if (range > 900) {
+          _dir.copy(z.pos).addScaledVector(z.axis, Math.min(range * 0.5, 1400)).sub(jet.pos);
+        } else {
+          _dir.copy(_to);
+        }
+        this.limitAltitude(_dir, jet, terrain);
+        this.steer(_dir.normalize(), 0.9);
         break;
       }
 

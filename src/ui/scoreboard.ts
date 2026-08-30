@@ -1,4 +1,4 @@
-import { CFG, MODE_NAME, TEAM, TeamId } from '../core/config';
+import { TEAM, TeamId } from '../core/config';
 import { fmtTime } from '../core/mathx';
 
 export interface PilotRow {
@@ -15,6 +15,9 @@ export interface PilotRow {
 
 export interface MatchInfo {
   score: Record<TeamId, number>;
+  /** the mode in play, and what it takes to win it */
+  modeName: string;
+  scoreLimit: number;
   timeLeft: number;
   teams: Array<{ team: TeamId; css: string; pilots: PilotRow[] }>;
   mapName: string;
@@ -65,13 +68,13 @@ export function scoreboardHtml(info: MatchInfo): string {
   return `
     <div class="sb">
       <div class="sb-head">
-        <div class="sb-mode">${MODE_NAME}<span>${info.mapName}</span></div>
+        <div class="sb-mode">${info.modeName}<span>${info.mapName}</span></div>
         <div class="sb-score">
-          <b class="blue">${info.score.BLUE}</b>
+          <b class="blue">${Math.floor(info.score.BLUE)}</b>
           <span>${info.result ?? lead}</span>
-          <b class="red">${info.score.RED}</b>
+          <b class="red">${Math.floor(info.score.RED)}</b>
         </div>
-        <div class="sb-meta">${fmtTime(info.timeLeft)}<span>FIRST TO ${CFG.match.scoreLimit}</span></div>
+        <div class="sb-meta">${fmtTime(info.timeLeft)}<span>FIRST TO ${info.scoreLimit}</span></div>
       </div>
       <div class="sb-tables">${info.teams.map(table).join('')}</div>
     </div>`;

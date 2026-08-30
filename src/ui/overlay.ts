@@ -1,6 +1,14 @@
 import {
-  AirframeId, AIRFRAMES, AIRFRAME_ORDER, CFG, DifficultyId, DIFFICULTIES,
-  DIFFICULTY_ORDER, GAME_NAME, MODE_NAME,
+  AIRFRAMES,
+  AIRFRAME_ORDER,
+  AirframeId,
+  DIFFICULTIES,
+  DIFFICULTY_ORDER,
+  DifficultyId,
+  GAME_NAME,
+  MODES,
+  MODE_ORDER,
+  ModeId,
 } from '../core/config';
 import { MatchResult } from '../core/game';
 import { Settings } from '../core/settings';
@@ -52,6 +60,7 @@ type Ctl = 'invertPitch' | 'invertRoll' | 'assist' | 'muted' | 'cullCity'
   | 'sens-' | 'sens+' | 'vol-' | 'vol+' | 'reset' | `bind:${ActionId}`;
 
 type Act = 'resume' | 'restart' | 'leave' | 'settings' | 'back'
+  | `mode:${ModeId}`
   | `map:${MapId}` | `diff:${DifficultyId}` | `frame:${AirframeId}`;
 
 export class Overlay {
@@ -116,6 +125,10 @@ export class Overlay {
 
   private act(a: Act) {
     this.commitName();
+    if (a.startsWith('mode:')) {
+      this.settings.setMode(a.slice(5) as ModeId);
+      return;
+    }
     if (a.startsWith('map:')) {
       // rebuilding the world is not instant, so show the choice before it happens
       this.settings.setMap(a.slice(4) as MapId);
@@ -262,7 +275,7 @@ export class Overlay {
     this.el.innerHTML = `<div class="panel wide">
       <h1 style="color:${color}">${title}</h1>
       <div class="sub">${result.winner === 'DRAW' ? 'NEITHER SIDE REACHED THE LIMIT'
-        : `TEAM ${result.winner} REACHED ${CFG.match.scoreLimit} KILLS`}</div>
+        : `TEAM ${result.winner} TOOK IT ${MODES[this.settings.data.mode].killsScore ? 'ON KILLS' : 'ON GROUND HELD'}`}</div>
       ${scoreboardHtml(info)}
       <div class="acts">
         <button class="act primary" data-act="restart">NEW MATCH</button>
@@ -284,6 +297,22 @@ export class Overlay {
     ];
     return `<span class="bars">${rows.map(([label, v]) => `
       <span class="bar"><i>${label}</i><u><b style="width:${(v * 100).toFixed(0)}%"></b></u></span>`).join('')}</span>`;
+  }
+
+  /**
+   * The mode sits above the three columns rather than beside them: it changes
+   * what the other choices mean, and a fourth column would have put the panel
+   * back over the fold it was rebuilt to clear.
+   */
+  private modeRow(): string {
+    const d = this.settings.data;
+    const opts = MODE_ORDER.map((id) => {
+      const m = MODES[id];
+      return `<button class="mode${d.mode === id ? ' on' : ''}" data-act="mode:${id}">
+        <b>${m.name}</b><i>${m.blurb}</i>
+      </button>`;
+    }).join('');
+    return `<div class="modes">${opts}</div>`;
   }
 
   private choices(): string {
@@ -342,9 +371,11 @@ export class Overlay {
         ${paused
           ? `<div class="eyebrow">${GAME_NAME}</div><h1>PAUSED</h1>`
           : `<h1 class="game-title">${first} <span>${rest.join(' ')}</span></h1>`}
-        <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODE_NAME} &nbsp;·&nbsp; FIRST TO ${CFG.match.scoreLimit}</div>
+        <div class="sub">5 V 5 &nbsp;·&nbsp; ${MODES[this.settings.data.mode].name}
+          &nbsp;·&nbsp; FIRST TO ${MODES[this.settings.data.mode].scoreLimit}</div>
       </div>
 
+      ${paused ? '' : this.modeRow()}
       ${paused ? '' : this.choices()}
 
       ${paused
