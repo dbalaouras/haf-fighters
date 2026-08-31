@@ -44,6 +44,22 @@ export const CFG = {
     levelGain: 1.9,               // nose-to-horizon recovery when pitch is released
     levelStrength: 0.85,          // how much of the pitch authority auto-levelling may use
     pitchDeadzone: 0.06,          // stick travel below this counts as "hands off"
+    /**
+     * Auto-levelling only helps within this much of the horizon, fading to
+     * nothing at the edge. Past it a climb or a dive is taken as deliberate and
+     * held: the assist is there to settle you into cruise, not to overrule a
+     * commitment to the vertical.
+     */
+    levelBand: 34 * Math.PI / 180,
+    /**
+     * How fast the virtual stick eases back to centre, per axis. Roll returns
+     * briskly because wings-level is a sensible resting attitude. Pitch is
+     * deliberately slow: a full loop takes about four seconds of held elevator,
+     * and at the roll rate the command had decayed to nothing long before the
+     * nose came over the top.
+     */
+    centreRoll: 1.1,
+    centrePitch: 0.32,
   },
 
   /**

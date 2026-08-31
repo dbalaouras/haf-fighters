@@ -184,9 +184,10 @@ export class Input {
     if (freeLook) {
       // hold the stick where it is rather than letting it drift while looking
     } else if (this.pointerLocked || !this.absMouse) {
-      // the locked stick eases back to centre so you can let go and fly straight
-      this.stick.x = damp(this.stick.x, 0, 1.1, dt);
-      this.stick.y = damp(this.stick.y, 0, 1.1, dt);
+      // the locked stick eases back to centre so you can let go and fly straight,
+      // but the pitch axis holds far longer than roll — see CFG.assist.centrePitch
+      this.stick.x = damp(this.stick.x, 0, CFG.assist.centreRoll, dt);
+      this.stick.y = damp(this.stick.y, 0, CFG.assist.centrePitch, dt);
     } else {
       const reach = Math.min(innerWidth, innerHeight) * 0.34;
       this.stick.x = clamp((this.absMouse.x - innerWidth / 2) / reach, -1, 1);

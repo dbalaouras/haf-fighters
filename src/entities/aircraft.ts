@@ -359,22 +359,41 @@ export class Aircraft {
     const A = CFG.assist;
     const bank = this.bank;
 
+    /*
+     * Is the pilot flying the pitch axis right now? While they are, the assist
+     * stops trimming: it neither pulls the nose to the horizon nor rolls the
+     * wings level. That second part is what makes a loop possible at all — over
+     * the top you are inverted, so "roll upright" and "keep looping" are the
+     * same input, and the assist used to win.
+     */
+    const manoeuvring = Math.abs(this.surf.pitch) >= A.pitchDeadzone;
+    const handsOffRoll = Math.abs(this.surf.roll) < A.pitchDeadzone;
+
     // roll: proportional attitude hold, which auto-levels at zero input
     const targetBank = this.surf.roll * A.maxBank;
-    const rollCmd = clamp((targetBank - bank) * A.bankGain, -1, 1);
+    const rollCmd = manoeuvring && handsOffRoll
+      ? 0                                        // hold whatever bank we are at
+      : clamp((targetBank - bank) * A.bankGain, -1, 1);
     const p = rollCmd * this.frame.rollRate * auth;
 
     // the turn fades out when pointing near-vertical, where "bank" is meaningless
     const vertical = 1 - clamp01((Math.abs(this.forward().y) - 0.9) / 0.09);
     const omega = A.maxTurn * Math.sin(bank) * auth * vertical;
 
-    let q = omega * Math.sin(bank) + this.surf.pitch * this.frame.pitchRate * auth;
+    // inside the deadzone the axis counts as released, so the leftover deflection
+    // stops contributing too — otherwise a stick sitting just under the threshold
+    // trims against the leveller and the nose settles a few degrees high
+    const pitchCmd = manoeuvring ? this.surf.pitch : 0;
+    let q = omega * Math.sin(bank) + pitchCmd * this.frame.pitchRate * auth;
     let r = omega * Math.cos(bank);
 
-    // hands off the pitch axis: bring the nose back to the horizon
-    if (Math.abs(this.surf.pitch) < A.pitchDeadzone) {
+    // Hands off the pitch axis: bring the nose back to the horizon — but only
+    // from within levelBand. A steeper attitude than that was asked for, and
+    // gets left alone.
+    if (!manoeuvring) {
+      const band = 1 - clamp01(Math.abs(this.pitchAngle) / A.levelBand);
       const correction = clamp(-this.pitchAngle * A.levelGain, -1, 1);
-      q += correction * this.frame.pitchRate * auth * A.levelStrength * vertical;
+      q += correction * this.frame.pitchRate * auth * A.levelStrength * vertical * band;
     }
 
     // cap total turn authority at the manual limit so assist is never an advantage
