@@ -376,8 +376,10 @@ export class Aircraft {
       : clamp((targetBank - bank) * A.bankGain, -1, 1);
     const p = rollCmd * this.frame.rollRate * auth;
 
-    // the turn fades out when pointing near-vertical, where "bank" is meaningless
-    const vertical = 1 - clamp01((Math.abs(this.forward().y) - 0.9) / 0.09);
+    // the turn fades out only when pointing near-vertical, where "bank" itself
+    // stops being defined — see CFG.assist.verticalFrom
+    const fy = Math.abs(this.forward().y);
+    const vertical = 1 - clamp01((fy - A.verticalFrom) / (A.verticalTo - A.verticalFrom));
     const omega = A.maxTurn * Math.sin(bank) * auth * vertical;
 
     // inside the deadzone the axis counts as released, so the leftover deflection

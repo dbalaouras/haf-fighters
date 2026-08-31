@@ -60,6 +60,16 @@ export const CFG = {
      */
     centreRoll: 1.1,
     centrePitch: 0.32,
+    /**
+     * Bank-to-turn degenerates when the nose is straight up or down: bank is
+     * atan2(-right.y, up.y) and both terms vanish there, so the turn has to fade
+     * out. It used to start fading at 64 degrees of pitch and be gone by 82,
+     * which was invisible while the assist flattened every climb — now that a
+     * steep attitude can be held, rolling up there produced no turn at all.
+     * Fade across the last few degrees instead, where the maths actually breaks.
+     */
+    verticalFrom: 0.985,   // ~80 deg of pitch
+    verticalTo: 0.9995,    // ~88 deg
   },
 
   /**
